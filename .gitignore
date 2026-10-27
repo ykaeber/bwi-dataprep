@@ -1,0 +1,17 @@
+# BWI data is public but large — download it (see data/README.md)
+/data/*
+!/data/README.md
+
+# pipeline outputs
+/outputs/
+/figures/
+
+# R session artifacts
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# OS
+.DS_Store
