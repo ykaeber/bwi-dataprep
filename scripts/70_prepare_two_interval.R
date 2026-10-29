@@ -68,8 +68,9 @@
 ##   national/siteID_dt.csv        siteID <-> interval, physical corner (crosswalk)
 ##   national/reg_target.csv       regeneration target per corner x species
 ##   national/wzp_qc_i{1,2}.csv    basal-area conservation of the expansion
-##   train/, holdout_blocked/, pilot/   the same FINN tables for the spatially
-##                           blocked split (pilot = small fixed subset of train);
+##   train/, holdout_blocked/, train_quarter/, pilot/   the same FINN tables for
+##                           the spatially blocked split (train_quarter ~25 % and
+##                           pilot ~2,000 site-periods: nested subsets of train);
 ##                           siteIDs renumbered 1..n, siteID_dt keeps
 ##                           siteID_national. Scaling is the national one.
 ##   split_blocks.csv        tract -> block -> set
@@ -145,6 +146,7 @@ PARAMS <- list(
   block_km      = 100,
   holdout_share = 0.20,           # share of BLOCKS held out
   pilot_target  = 2000L,          # site-periods in the pilot subset of train
+  quarter_share = 0.25,           # train_quarter: share of train site-periods (faster cluster fits)
 
   bwi4_dir = file.path(BWI_RAW_DIR, "bwi4"),
   seed     = 42L
@@ -626,11 +628,15 @@ train_xy <- as.matrix(tr[set == "train", .(east, north)])
 d_km <- FNN::get.knnx(train_xy, hold_xy, k = 1)$nn.dist[, 1] / 1000
 hold_dist <- c(median = median(d_km), min = min(d_km), p10 = unname(quantile(d_km, 0.10)))
 
-## pilot: whole training tracts (both decades kept together) up to the target
+## pilot and train_quarter: whole training tracts (both decades kept together),
+## taken in ONE random tract order up to each target, so pilot sits inside
+## train_quarter and both are fixed by the seed
 train_tr <- site_set[set == "train", .N, by = Tnr]
 train_tr <- train_tr[sample(.N)]
 pilot_tr <- train_tr[cumsum(N) <= PARAMS$pilot_target, Tnr]
 site_set_pilot <- site_set[Tnr %in% pilot_tr]
+quarter_tr <- train_tr[cumsum(N) <= PARAMS$quarter_share * sum(N), Tnr]
+site_set_quarter <- site_set[Tnr %in% quarter_tr]
 
 #' Write the FINN tables for a subset of national siteIDs, renumbered 1..n.
 write_set <- function(name, site_ids) {
@@ -663,10 +669,13 @@ write_set <- function(name, site_ids) {
 set_tab <- rbind(
   write_set("train",           site_set[set == "train", siteID]),
   write_set("holdout_blocked", site_set[set == "holdout_blocked", siteID]),
+  write_set("train_quarter",   site_set_quarter$siteID),
   write_set("pilot",           site_set_pilot$siteID))
 set_tab[, blocks := c(length(blocks) - length(hold_bl), length(hold_bl),
+                      uniqueN(tr[Tnr %in% quarter_tr, block]),
                       uniqueN(tr[Tnr %in% pilot_tr, block]))]
 fwrite(tr[, .(Tnr, lon, lat, east, north, block, set,
+              train_quarter = Tnr %in% quarter_tr,
               pilot = Tnr %in% pilot_tr)], file.path(OUT_VER, "split_blocks.csv"))
 sids[, Tnr := NULL]
 print(set_tab)
@@ -779,7 +788,7 @@ md <- c(
   "",
   sprintf("Distance from each holdout tract to the nearest training tract: median %.1f km, minimum %.1f km, 10th percentile %.1f km.",
           hold_dist[["median"]], hold_dist[["min"]], hold_dist[["p10"]]),
-  "`pilot/` is a fixed random subset of whole training tracts (for timing and quick iterations), not a separate population.",
+  "`train_quarter/` (~25 % of train, for faster fits) and `pilot/` (timing, quick iterations) are fixed random subsets of whole training tracts, drawn from one tract order so `pilot` lies inside `train_quarter`; they are not separate populations.",
   "",
   "## Checks",
   "",

@@ -339,7 +339,7 @@ run. What it does:
 - **Regeneration** for both decades from the fixed-area regeneration circles
   (dbh 5.0–6.9 cm, r = 1.75 m), as recruits per hectare per period. The archive's
   2012 counts are identical to ACCESS2003 `b3_jung`.
-- **Spatially blocked sets** — `train/`, `holdout_blocked/` and a small
+- **Spatially blocked sets** — `train/`, `holdout_blocked/`, `train_quarter/` (~25 % of train) and a small
   `pilot/`, next to `national/`, all with the same files. Whole tracts with
   both decades move together, in 100 km blocks; `PREPARATION.md` reports the
   distance from holdout to the nearest training tract.
