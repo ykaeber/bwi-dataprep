@@ -59,6 +59,10 @@ Rscript scripts/04_prepare_finn_inputs.R # model-ready tables
   guidance — then build the tree panel with `scripts/40_import_new_schema.R`:
   same format as the ACCESS2003 pipeline, so the tree-level and plot-level
   products apply unchanged.
+- **Both decades together** — `scripts/70_prepare_two_interval.R` stitches
+  2002→2012 and 2012→2022 into one FINN input set with a per-year drought
+  covariate (DWD grids via `scripts/fetch_dwd_drought.sh` +
+  `scripts/16_drought_index.R`) and spatially blocked train/holdout sets.
 
 The data itself is **not** included here — it is public and re-downloadable. See
 [`data/README.md`](data/README.md) for the download commands for both releases.
@@ -67,6 +71,8 @@ The `data/` directory is gitignored.
 ## Requirements
 
 - R with `data.table` (plus `sf` / `terra` for the environment step).
+- For the two-decade FINN inputs: the `FINN` R package, `FNN`, and `ggplot2` /
+  `patchwork` (figures in `scripts/16`).
 - `mdbtools` (only for the one-time Access import in `scripts/00`).
 - WorldClim 30″ rasters for `scripts/03` (see the usage guide).
 

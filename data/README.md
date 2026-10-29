@@ -37,7 +37,9 @@ data/
 │   ├── bwi20150320_alle_daten2012/bwi20150320_alle_daten2012.mdb
 │   ├── bwi20150320_alle_daten2002-2012/bwi20150320_alle_daten2002-2012.mdb
 │   ├── metadaten/bwi20150320_alle_metadaten.mdb
-│   └── inspire/Tnr_INSPIRE_Poly1000.shp   (+ .dbf .prj .shx)
+│   ├── inspire/Tnr_INSPIRE_Poly1000.shp   (+ .dbf .prj .shx)
+│   ├── bwi4/*.csv                          inventory archive (scripts/fetch_bwi4*.sh)
+│   └── dwd_drought/*.asc.gz                DWD monthly grids (scripts/fetch_dwd_drought.sh)
 └── bwi_csv/                                created by scripts/00_import_bwi.R
 ```
 
@@ -87,6 +89,17 @@ Output lands in `data/raw/bwi4/*.csv` (all intervals: `bwi2012`, `ci2017`,
 tree panel in the same format as the ACCESS2003 pipeline — see
 [`../docs/bwi_data_usage_guide.md`](../docs/bwi_data_usage_guide.md) ("Working
 with the latest BWI").
+
+## Drought (DWD)
+
+Only for the two-decade FINN inputs (`scripts/16`, `scripts/70`). The DWD
+Climate Data Center publishes 1 km monthly grids for Germany (open data,
+CC BY 4.0, <https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/>):
+soil moisture, potential and actual evapotranspiration, and the de Martonne index.
+
+```bash
+bash scripts/fetch_dwd_drought.sh            # 2000-2022 -> data/raw/dwd_drought/ (~1,100 files)
+```
 
 ## Climate
 

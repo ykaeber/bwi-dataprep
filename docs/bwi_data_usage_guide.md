@@ -299,7 +299,50 @@ products for the **2012→2022** transition — the drought decade.
   salvage-logged (`tree_status` 12 = removed), which censors them out of the
   *natural*-mortality signal. For a clean biological mortality rate, restrict to
   **low-harvest corners** (each corner's harvest share is in `corners.csv`),
-  where dead trees stay recorded as standing dead (`tree_status` 4/5).
+  where dead trees stay recorded as standing dead (`tree_status` 4/5). The
+  BWI4 plot table also records *why* trees were removed
+  (`plot.harvest_reason`: 0 regular, 1 storm, 2 insects/drought, 3 fire,
+  4 calamity of uncertain cause), which `scripts/70` uses to book salvage as
+  natural death.
+
+### Both decades in one model (FINN, `scripts/70`)
+
+With one mortality observation per corner per decade, a single decade cannot
+separate "this species dies more" from "this decade was dry". The same corners
+observed over **2002→2012 and 2012→2022** can, which is what makes a per-year
+drought covariate worth an annual timestep. `scripts/70_prepare_two_interval.R`
+builds that input set:
+
+```bash
+bash scripts/fetch_dwd_drought.sh           # DWD 1 km monthly grids 2000-2022 (see data/README.md)
+Rscript scripts/16_drought_index.R          # per-site, per-year soil-moisture anomaly
+Rscript scripts/70_prepare_two_interval.R   # -> outputs/prepared/two-interval-v1/
+```
+
+It needs the ACCESS2003 pipeline (`scripts/00`–`03`) and `scripts/40` to have
+run. What it does:
+
+- **One code path for both decades** — the same expansion, sample sizes,
+  total-removal mortality and annualised rates as `scripts/04`; interval 1
+  reproduces `scripts/04`'s output exactly.
+- **Each decade is its own site-period** — the same corner appears twice with
+  a different start stand and different environment years; interval-2 site ids
+  are offset, and `siteID_dt` keeps `interval` and the physical `corner`.
+- **Pooled scaling** — covariates are z-scaled once over both decades (so the
+  same climate gets the same z-score in either decade); `env_scales.csv` holds
+  the mean/sd and `env_unscaled_dt.csv` the natural units. Fit with FINN's
+  automatic rescaling switched off (`env_autoscale = FALSE`).
+- **Realised survey dates** for BWI4 (from `plot.acquisition_date`), so the
+  drought years line up with the field work.
+- **Calamity salvage → natural death** in 2012→2022; the management tier
+  counts regular harvest only, so the drought pulse stays in mortality.
+- **Regeneration** for both decades from the fixed-area regeneration circles
+  (dbh 5.0–6.9 cm, r = 1.75 m), as recruits per hectare per period. The archive's
+  2012 counts are identical to ACCESS2003 `b3_jung`.
+- **Spatially blocked sets** — `train/`, `holdout_blocked/` and a small
+  `pilot/`, next to `national/`, all with the same files. Whole tracts with
+  both decades move together, in 100 km blocks; `PREPARATION.md` reports the
+  distance from holdout to the nearest training tract.
 
 ---
 
@@ -314,6 +357,7 @@ products for the **2012→2022** transition — the drought decade.
 | corner population / filters | `b0_ecke`, `b23_ecke_w`, `b3_bestock` | `scripts/01`, `scripts/02` |
 | environment | WorldClim, `b0_tab` (elevation), INSPIRE coords | `scripts/03`, `scripts/16` |
 | FINN inputs | all of the above | `scripts/04` |
+| FINN inputs, both decades | the above + inventory archive + DWD grids | `scripts/16`, `scripts/40`, `scripts/70` |
 
 ### Constants (`R/config.R`)
 
