@@ -53,10 +53,12 @@ Rscript scripts/04_prepare_finn_inputs.R # model-ready tables
 - **ACCESS2003** — BWI2 (2002) → BWI3 (2012); the public *erweiterter
   Grunddatensatz*, no data-use agreement. Pipeline: `scripts/00`–`04`.
 - **Thünen inventory-archive API** — adds **BWI4 (2022)**, i.e. the
-  BWI3 → BWI4 (2012 → 2022) transition over the 2018–2020 drought; CC-BY-SA 4.0,
-  public anonymous key. Download with `scripts/fetch_bwi4*.sh`, then build the
-  tree panel with `scripts/40_import_new_schema.R` — same format as the
-  ACCESS2003 pipeline, so the tree-level and plot-level products apply unchanged.
+  BWI3 → BWI4 (2012 → 2022) transition over the 2018–2020 drought; public
+  anonymous key (check Thünen's terms for the data licence). Download with
+  `scripts/fetch_bwi4*.sh` — which also note Thünen's "filtered queries, not bulk"
+  guidance — then build the tree panel with `scripts/40_import_new_schema.R`:
+  same format as the ACCESS2003 pipeline, so the tree-level and plot-level
+  products apply unchanged.
 
 The data itself is **not** included here — it is public and re-downloadable. See
 [`data/README.md`](data/README.md) for the download commands for both releases.

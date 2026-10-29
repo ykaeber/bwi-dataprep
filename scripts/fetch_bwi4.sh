@@ -4,20 +4,27 @@
 # scripts/fetch_bwi4.sh
 #
 # The public ACCESS2003 download has only BWI2 (2002) + BWI3 (2012). BWI4 (2022)
-# is served by the Thuenen inventory-archive REST API at ci.thuenen.de, CC-BY-SA
-# 4.0. Access uses a PUBLIC anonymous key that Thuenen documents at
+# is served by the Thuenen inventory-archive REST API at ci.thuenen.de. Access
+# uses a PUBLIC anonymous key (role "anon") that Thuenen documents at
 #   https://thuenen-forest-ecosystems.github.io/TFM-Documentation/api/general-api.html
-# (role "anon").
+# Check Thuenen's own terms / legal notice for the licence before redistributing
+# the data (this repo does not restate a licence).
 #
 # The key is read from $FINN_BWI_APIKEY or data/raw/bwi4/.apikey (gitignored).
 # Two headers are required on every call:
 #   apikey: <key>
 #   Accept-Profile: inventory_archive     (PostgREST schema selector)
 #
-# We download each endpoint IN FULL (all intervals: bwi2012, ci2017, bwi2022,
-# ci2027) as flat CSV, plus the lookup tables, then filter locally by joining
-# tree.plot_id -> plot.id -> plot.interval_name. Row counts (2026-07): plot 784k,
-# tree 1.72M, regeneration 382k, deadwood 494k -- a few hundred MB.
+# NOTE ON USE: Thuenen's Getting-Started page states the API "should only be used
+# for filtered queries and not for bulk data extraction", and for bulk use points
+# to a self-hosted SQL dump (https://git-dmz.thuenen.de/tfm-seeds/public, server
+# at https://github.com/Thuenen-Forest-Ecosystems/TFM-Server). This script pulls
+# each endpoint in full for convenience/reproducibility; for large or repeated
+# use prefer that SQL dump and mind the API's (unspecified) rate limits.
+#
+# Each endpoint is pulled across all intervals (bwi2012, ci2017, bwi2022, ci2027)
+# as flat CSV, plus the lookup tables; filter locally by joining
+# tree.plot_id -> plot.id -> plot.interval_name.
 #
 #   bash scripts/fetch_bwi4.sh
 #   bash scripts/fetch_bwi4.sh --endpoints plot,tree        # subset

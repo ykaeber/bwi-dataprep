@@ -53,10 +53,22 @@ read_big <- function(name, select = NULL, lookup = FALSE) {
 splk <- read_big("lookup_tree_species", c("code", "genus", "species"),
                  lookup = TRUE)
 splk[, latin := paste(genus, species)]
-our <- fread(file.path(OUT_DIR, "finn", "species_dt.csv"))
-splk <- merge(splk[, .(code, latin)], our, by.x = "latin", by.y = "species_name",
-              all.x = TRUE)
-splk[, species_name := fifelse(is.na(species), paste0("BA_", code), latin)]
+## Species naming. If the ACCESS2003 pipeline has been run, reuse its species
+## list (outputs/finn/species_dt.csv) so lumping is IDENTICAL across releases --
+## species outside that canonical set are labelled BA_<code>. If it is absent,
+## run standalone: keep every species' Latin name straight from the BWI4 lookup
+## (the new-schema path then needs no prior ACCESS2003 run).
+sp_dt_path <- file.path(OUT_DIR, "finn", "species_dt.csv")
+if (file.exists(sp_dt_path)) {
+  our  <- fread(sp_dt_path)
+  splk <- merge(splk[, .(code, latin)], our, by.x = "latin",
+                by.y = "species_name", all.x = TRUE)
+  splk[, species_name := fifelse(is.na(species), paste0("BA_", code), latin)]
+} else {
+  message("species_dt.csv not found -> standalone species naming from the BWI4 ",
+          "lookup (run scripts/04 first to lump to the ACCESS2003 species set).")
+  splk[, species_name := latin]
+}
 sp_of <- splk[, setNames(species_name, code)]
 
 #=#=#= plot + tree ==========================================================

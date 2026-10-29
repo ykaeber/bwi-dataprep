@@ -60,22 +60,31 @@ Override the root with `FINN_BWI_DIR`.
 
 The ACCESS2003 download above stops at BWI3 (2012). **BWI4 (2022)** — and with it
 the 2012→2022 transition that spans the 2018–2020 drought — is served by the
-Thünen inventory-archive REST API at `ci.thuenen.de`, **CC-BY-SA 4.0**. Access
-uses a **public anonymous key** (role `anon`) that Thünen documents at
+Thünen inventory-archive REST API at `ci.thuenen.de`, using a **public anonymous
+key** (role `anon`) that Thünen documents at
 <https://thuenen-forest-ecosystems.github.io/TFM-Documentation/api/general-api.html>.
+Check Thünen's own terms / legal notice for the data licence before
+redistributing — this repo does not assert one.
+
+**Please note Thünen's usage guidance:** their Getting-Started page says the API
+"should only be used for filtered queries and not for bulk data extraction", and
+points to a self-hosted **SQL dump** for bulk use
+(<https://git-dmz.thuenen.de/tfm-seeds/public>, server:
+<https://github.com/Thuenen-Forest-Ecosystems/TFM-Server>). The `fetch_bwi4*.sh`
+scripts below pull full tables for convenience; for large or repeated use prefer
+the SQL dump and mind the API's rate limits.
 
 Put the anon key in the environment or a (gitignored) key file, then download:
 
 ```bash
 export FINN_BWI_APIKEY=<public anon key>     # or: echo <key> > data/raw/bwi4/.apikey
-bash scripts/fetch_bwi4.sh                   # plot, tree*, regeneration, deadwood, lookups
+bash scripts/fetch_bwi4.sh                   # plot, regeneration, deadwood, lookups
 bash scripts/fetch_bwi4_tree.sh              # the large /tree table (keyset-paged, resumable)
 ```
 
 Output lands in `data/raw/bwi4/*.csv` (all intervals: `bwi2012`, `ci2017`,
-`bwi2022`, `ci2027`; a few hundred MB). Then
-`scripts/40_import_new_schema.R` builds the BWI3→BWI4 tree panel in the same
-format as the ACCESS2003 pipeline — see
+`bwi2022`, `ci2027`). Then `scripts/40_import_new_schema.R` builds the BWI3→BWI4
+tree panel in the same format as the ACCESS2003 pipeline — see
 [`../docs/bwi_data_usage_guide.md`](../docs/bwi_data_usage_guide.md) ("Working
 with the latest BWI").
 
