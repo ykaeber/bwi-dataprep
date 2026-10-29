@@ -14,11 +14,19 @@ Four inventories exist:
 | BWI 1 | 1986–88 | old federal states only, different design |
 | BWI 2 | 2001–02 | all of Germany |
 | BWI 3 | 2011–12 | all of Germany |
-| BWI 4 | 2021–22 | all of Germany (not in this release) |
+| BWI 4 | 2021–22 | all of Germany (via the Thünen inventory-archive API) |
 
-This project uses the **BWI 2 → BWI 3 transition**, which is the only pair in
-the public release with a consistent design, permanent sample trees and
-harmonised change tables.
+Both change pairs are covered here:
+
+- **BWI 2 → BWI 3 (2002 → 2012)** — the primary dataset, from the public
+  *erweiterter Grunddatensatz* (ACCESS2003 download): the only pair in that
+  release with a consistent design, permanent sample trees and harmonised change
+  tables. **Sections 2–10 below document this release**, verified against it.
+- **BWI 3 → BWI 4 (2012 → 2022)** — added via the Thünen **inventory-archive
+  REST API** (BWI4 is not in the ACCESS2003 download). `scripts/40_import_new_schema.R`
+  builds it into the same tree-panel format; see
+  [`bwi_data_usage_guide.md`](bwi_data_usage_guide.md) ("Working with the latest
+  BWI") for how to download and use it.
 
 The *erweiterter Grunddatensatz* ("extended raw dataset") is published
 anonymised, without coordinates, and **needs no data-use agreement**:
