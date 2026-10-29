@@ -258,6 +258,51 @@ the observed BWI2→BWI3 change, rather than to drive it.
 
 ---
 
+## Working with the latest BWI (2012→2022)
+
+Steps 1–3 above use the ACCESS2003 release (BWI2→BWI3, 2002→2012). The Thünen
+**inventory-archive API** adds **BWI4 (2022)**, so you can build the same
+products for the **2012→2022** transition — the drought decade.
+
+1. **Download** the inventory-archive (see `data/README.md`): set the public
+   anonymous API key, then
+   ```bash
+   bash scripts/fetch_bwi4.sh          # plot, regeneration, deadwood, lookups
+   bash scripts/fetch_bwi4_tree.sh     # the large /tree table (resumable)
+   ```
+   → `data/raw/bwi4/*.csv` (intervals `bwi2012`, `ci2017`, `bwi2022`, `ci2027`).
+
+2. **Build the tree panel** in the same format as Step 1:
+   ```bash
+   Rscript scripts/40_import_new_schema.R    # -> outputs/new_schema/panel.csv (+ corners.csv)
+   ```
+   `panel.csv` has the **same columns as `bwi_tree_panel()$trees`** (`time` 0/1,
+   `species_name`, `dbh`, `n_ha`, `fate`, …), so **Steps 2–3 apply unchanged** —
+   just load it in place of the tree table:
+   ```r
+   trees <- data.table::fread("outputs/new_schema/panel.csv")
+   # the Step 2 plot aggregates and Step 3 model inputs then work as-is
+   ```
+   *Prerequisite:* `scripts/40` reuses `outputs/finn/species_dt.csv` for
+   consistent species lumping across releases, so run the ACCESS2003 pipeline
+   (Step 0 + `scripts/04`) once first, or point it at your own species list.
+
+**What differs in this release:**
+
+- **Growth is measured directly** — survivors are matched across surveys by
+  `(cluster, plot, tree_number)`, so growth is `dbh_2022 − dbh_2012`, with none
+  of the Sloboda back-modelling that affected the ACCESS2003 growth (notes §5b).
+- **The drought decade is inside the window** — the 2018–2020 dieback is
+  captured, the period over which German forests turned from a net carbon sink
+  to a source in the national greenhouse-gas inventory.
+- **Salvage caveat** — drought-killed trees on managed corners were often
+  salvage-logged (`tree_status` 12 = removed), which censors them out of the
+  *natural*-mortality signal. For a clean biological mortality rate, restrict to
+  **low-harvest corners** (each corner's harvest share is in `corners.csv`),
+  where dead trees stay recorded as standing dead (`tree_status` 4/5).
+
+---
+
 ## Reference
 
 ### Raw tables → products

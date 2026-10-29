@@ -48,11 +48,19 @@ Rscript scripts/03_attach_environment.R  # WorldClim climate + elevation + coord
 Rscript scripts/04_prepare_finn_inputs.R # model-ready tables
 ```
 
-## Data
+## Data releases covered
 
-The data is **not** included here — it is public, re-downloadable, and needs no
-data-use agreement. See [`data/README.md`](data/README.md) for the download
-commands. The `data/` directory is gitignored.
+- **ACCESS2003** — BWI2 (2002) → BWI3 (2012); the public *erweiterter
+  Grunddatensatz*, no data-use agreement. Pipeline: `scripts/00`–`04`.
+- **Thünen inventory-archive API** — adds **BWI4 (2022)**, i.e. the
+  BWI3 → BWI4 (2012 → 2022) transition over the 2018–2020 drought; CC-BY-SA 4.0,
+  public anonymous key. Download with `scripts/fetch_bwi4*.sh`, then build the
+  tree panel with `scripts/40_import_new_schema.R` — same format as the
+  ACCESS2003 pipeline, so the tree-level and plot-level products apply unchanged.
+
+The data itself is **not** included here — it is public and re-downloadable. See
+[`data/README.md`](data/README.md) for the download commands for both releases.
+The `data/` directory is gitignored.
 
 ## Requirements
 
