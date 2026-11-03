@@ -14,6 +14,25 @@
 ## corners can, and that is what makes the annual drought covariate earn its
 ## timestep.
 ##
+## VERSION 2 (two-interval-v2) = v1 + tree_obs_dt.csv, the tallied trees of each
+## start tally with their removal 0/1 over the decade, for FINN's per-tree
+## mortality loss (fit(loss_aggregation = c(mortality = "tree"), tree_data =)).
+## The annualised site x species rate in obs_dt (mort) cannot carry a complete
+## removal: a decade share of 1 becomes an annual rate of 1 (5 % of the at-risk
+## stems in decade 1, 10 % in decade 2, 18 % of spruce in decade 2), so the
+## mean annual target was 7.9 / 12.2 %/yr against a real 3.0 %/yr. Per tree, a
+## complete removal is simply every tree at 1, scored against the predicted
+## interval death probability. Everything else is unchanged from v1.
+##
+## VERSION 3 (two-interval-v3) = v2 + env column `drought_lag1`, the PREVIOUS
+## calendar year's drought anomaly at every env row (row k: year_t0 + k - 1).
+## Bark-beetle mortality of spruce follows a drought by one to two years; with
+## the current year only, the stage-1 fit reproduced the national 2018-2020
+## response but put the Harz spruce removal at 2.7 %/yr against 12.3 observed
+## (outputs/assessment/2026-11-02-stage1). Row 0 takes year_t0 - 1, which the
+## 2000-2022 drought table covers for both decades. Everything else is
+## unchanged from v2.
+##
 ## ONE CODE PATH FOR BOTH DECADES
 ## prepare_interval() below mirrors scripts/04_prepare_finn_inputs.R, steps 1-7b
 ## (angle-count expansion, makeObsData, tallied sample sizes, total-removal
@@ -57,7 +76,7 @@
 ##   outputs/corner_env.csv                climate, elevation, x/y (scripts/03)
 ##   outputs/site_drought_annual.csv       per-year drought anomaly (scripts/16)
 ##
-## Outputs  outputs/prepared/two-interval-v1/
+## Outputs  outputs/prepared/two-interval-v3/
 ##   PREPARATION.md          what was done, decisions, PARAMS, counts, caveats
 ##   national/obs_dt.csv     observations, both decades (obs at year 10)
 ##   national/env_dt.csv     covariates per siteID x year 0..10, z-scaled once
@@ -66,6 +85,9 @@
 ##   national/init_cohort_dt.csv   start-of-decade stands for both decades
 ##   national/species_dt.csv       the 15 species, one code map for both decades
 ##   national/siteID_dt.csv        siteID <-> interval, physical corner (crosswalk)
+##   national/tree_obs_dt.csv      tallied trees of the start tally: siteID, year,
+##                                 patchID, species, dbh (start), trees (stems on
+##                                 the 0.1 ha patch), growth (/yr), died (0/1)
 ##   national/reg_target.csv       regeneration target per corner x species
 ##   national/wzp_qc_i{1,2}.csv    basal-area conservation of the expansion
 ##   train/, holdout_blocked/, train_quarter/, pilot/   the same FINN tables for
@@ -95,7 +117,7 @@ source("R/bwi_trees.R")
 
 #=#=# PARAMS #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 PARAMS <- list(
-  version = "two-interval-v1",
+  version = "two-interval-v3",
 
   ## Nominal patch area for the angle-count expansion (ha); must equal the
   ## patch_size passed to fit(). Same as scripts/04.
@@ -322,6 +344,22 @@ prepare_interval <- function(panel, corners, label, V, env_in, drought) {
   obs_dt[, growth := fifelse(growth_n > 0 & is.finite(growth_obs),
                              growth_obs, NA_real_)]
   obs_dt[, growth_obs := NULL]
+
+  ## ---- 6b) the tallied trees, for FINN's per-tree mortality loss ----------
+  ## One row per tree of the start tally: removal 0/1 over the decade (natural
+  ## death or harvest, the same total removal as `mort`), annual relative growth
+  ## of survivors, and `trees` = the stems on the 0.1 ha patch that the tree
+  ## stands for, so FINN computes light from the expanded stand. Laterally
+  ## ingrown stems shade but are not at risk (died and growth NA, as in step 6).
+  tree_tab <- merge(panel[time == 0L & fate %in% c("survivor", "dead", "harvest", "ingrowth_lateral"),
+                          .(treeKey, siteName, species_name, n_ha, fate)],
+                    dbh_w, by = "treeKey", all.x = TRUE)
+  tree_tab <- tree_tab[is.finite(dbh_t0) & dbh_t0 > 0]
+  tree_tab[, `:=`(trees  = n_ha * PARAMS$patch_size_ha,
+                  died   = fcase(fate %in% c("dead", "harvest"), 1, fate == "survivor", 0, default = NA_real_),
+                  growth = fifelse(fate == "survivor" & is.finite(dbh_t1), (dbh_t1 / dbh_t0)^(1 / P) - 1, NA_real_))]
+  tree_tab <- tree_tab[, .(siteName, species_name, dbh = dbh_t0, trees, growth, died)]
+
   drop_cols <- grep("_expanded$", names(obs_dt), value = TRUE)
   if (length(drop_cols)) obs_dt[, (drop_cols) := NULL]
 
@@ -346,16 +384,22 @@ prepare_interval <- function(panel, corners, label, V, env_in, drought) {
   grid <- merge(grid, key, by = "siteName")
   grid[, cal_year := year_t0 + year]
   grid <- merge(grid, drought, by = c("siteName", "cal_year"), all.x = TRUE)
+  ## the previous calendar year's anomaly (v3)
+  grid <- merge(grid, drought[, .(siteName, cal_year = cal_year + 1L, drought_lag1 = drought)],
+                by = c("siteName", "cal_year"), all.x = TRUE)
   drought_cover <- mean(is.finite(grid$drought))
+  lag_cover <- mean(is.finite(grid$drought_lag1))
   grid[!is.finite(drought), drought := 0]
+  grid[!is.finite(drought_lag1), drought_lag1 := 0]
   if (!"siteName" %in% names(env_dt))
     env_dt <- merge(env_dt, unique(siteID_dt[, .(siteID, siteName)]),
                     by = "siteID", all.x = TRUE)
-  env_dt <- merge(env_dt, grid[, .(siteName, year, drought)],
+  env_dt <- merge(env_dt, grid[, .(siteName, year, drought, drought_lag1)],
                   by = c("siteName", "year"), all.x = TRUE)
   env_dt[!is.finite(drought), drought := 0]
-  message(sprintf("[%s] drought attached: %.1f %% of site-years covered, driest model-year mean %.2f",
-                  label, 100 * drought_cover,
+  env_dt[!is.finite(drought_lag1), drought_lag1 := 0]
+  message(sprintf("[%s] drought attached: %.1f %% (lag %.1f %%) of site-years covered, driest model-year mean %.2f",
+                  label, 100 * drought_cover, 100 * lag_cover,
                   min(env_dt[siteID %in% obs_dt$siteID, mean(drought), by = year]$V1)))
 
   ## ---- 7b) align all tables on the surviving sites, siteIDs 1..n ---------
@@ -369,8 +413,8 @@ prepare_interval <- function(panel, corners, label, V, env_in, drought) {
   stopifnot(setequal(unique(env_dt$siteID), unique(obs_dt$siteID)),
             setequal(unique(init_trees$siteID), unique(obs_dt$siteID)))
 
-  list(obs = obs_dt, env = env_dt[, c("siteID", "year", env_cols, "drought"), with = FALSE],
-       init = init_trees, siteID_dt = siteID_dt, qc = qc,
+  list(obs = obs_dt, env = env_dt[, c("siteID", "year", env_cols, "drought", "drought_lag1"), with = FALSE],
+       init = init_trees, siteID_dt = siteID_dt, qc = qc, trees = tree_tab,
        diag = list(sites = length(keep_sites), lat_share = lat_share,
                    drought_cover = drought_cover))
 }
@@ -539,6 +583,7 @@ qualify <- function(iv, k, offset) {
                       patchName = paste0(patchName, "@i", k))]
   iv$init[, `:=`(siteName = paste0(siteName, "@i", k),
                  patchName = paste0(patchName, "@i", k))]
+  iv$trees[, siteName := paste0(siteName, "@i", k)]
   iv
 }
 i1 <- qualify(i1, 1L, 0L)
@@ -548,9 +593,15 @@ obs  <- recode_species(rbind(i1$obs, i2$obs, fill = TRUE))
 init <- recode_species(rbind(i1$init, i2$init, fill = TRUE))
 sids <- rbind(i1$siteID_dt, i2$siteID_dt, fill = TRUE)
 env_unscaled <- rbind(i1$env, i2$env)
+## tallied trees on the surviving site-periods (one patch per corner, obs at year P)
+trees <- recode_species(rbind(i1$trees, i2$trees))
+trees <- merge(trees, unique(sids[, .(siteID, siteName)]), by = "siteName")
+trees[, `:=`(year = P, patchID = 1L)]
+tree_keep <- c("siteID", "year", "patchID", "species", "dbh", "trees", "growth", "died")
+setorder(trees, siteID, species, -dbh)
 
 ## pooled z-scaling over both decades; management stays on its 0..3 scale
-scale_vars <- c(PARAMS$env_vars, "drought")
+scale_vars <- c(PARAMS$env_vars, "drought", "drought_lag1")
 env_scales <- rbindlist(c(
   lapply(scale_vars, function(v) data.table(variable = v,
                                             mean = mean(env_unscaled[[v]]),
@@ -583,8 +634,17 @@ stopifnot(
   !anyNA(env_dt),
   all(obs$year == P),
   all(obs$species %in% species_dt$species),
-  max(i1$obs$siteID) < min(i2$obs$siteID)                           # decades never collide
+  max(i1$obs$siteID) < min(i2$obs$siteID),                          # decades never collide
+  setequal(unique(trees$siteID), unique(obs$siteID)),               # every site has its tally
+  all(trees$died %in% c(0, 1) | is.na(trees$died))
 )
+## the per-tree removal must reproduce the decade removal implied by obs_dt$mort
+## (both are tallied-tree counts; obs weights trees per stem, so compare loosely)
+tree_check <- merge(
+  trees[!is.na(died), .(tree_removal = mean(died), at_risk_trees = .N), by = .(interval = fifelse(siteID <= off, 1L, 2L))],
+  obs[n_at_risk > 0 & is.finite(mort), .(obs_removal = sum(n_at_risk * (1 - (1 - mort)^P)) / sum(n_at_risk)),
+      by = .(interval = fifelse(siteID <= off, 1L, 2L))], by = "interval")
+print(tree_check)
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 ## Write
@@ -596,6 +656,7 @@ fwrite(env_scales,         file.path(OUT_NAT, "env_scales.csv"))
 fwrite(init,               file.path(OUT_NAT, "init_cohort_dt.csv"))
 fwrite(species_dt,         file.path(OUT_NAT, "species_dt.csv"))
 fwrite(sids,               file.path(OUT_NAT, "siteID_dt.csv"))
+fwrite(trees[, ..tree_keep], file.path(OUT_NAT, "tree_obs_dt.csv"))
 fwrite(reg_tab,            file.path(OUT_NAT, "reg_target.csv"))
 fwrite(i1$qc,              file.path(OUT_NAT, "wzp_qc_i1.csv"))
 fwrite(i2$qc,              file.path(OUT_NAT, "wzp_qc_i2.csv"))
@@ -659,6 +720,8 @@ write_set <- function(name, site_ids) {
   fwrite(eu,             file.path(d, "env_unscaled_dt.csv"))
   fwrite(env_scales,     file.path(d, "env_scales.csv"))
   fwrite(pick(init),     file.path(d, "init_cohort_dt.csv"))
+  tt <- pick(trees[, ..tree_keep]); setorder(tt, siteID, species, -dbh)
+  fwrite(tt,             file.path(d, "tree_obs_dt.csv"))
   fwrite(species_dt,     file.path(d, "species_dt.csv"))
   fwrite(s,              file.path(d, "siteID_dt.csv"))
   data.table(set = name, sites = nrow(mp),
@@ -726,11 +789,12 @@ md <- c(
   "| file | content |",
   "|---|---|",
   "| obs_dt.csv | siteID, year, species, ba, dbh, trees, growth, growth_n, mort, n_at_risk, n_died, reg, period_length |",
-  "| env_dt.csv | siteID, year 0..10, mat_c, map_mm, elev_m, x, y, management, drought -- z-scaled ONCE over both decades; management left on 0..3 |",
+  "| env_dt.csv | siteID, year 0..10, mat_c, map_mm, elev_m, x, y, management, drought, drought_lag1 (previous calendar year, v3) -- z-scaled ONCE over both decades; management left on 0..3 |",
   "| env_unscaled_dt.csv / env_scales.csv | natural scale and the pooled mean/sd |",
   "| init_cohort_dt.csv | start-of-decade stand (BWI2 state for i1, BWI3 for i2), for makeInitCohorts() |",
   "| species_dt.csv | the 15 species, one code map for both decades |",
   "| siteID_dt.csv | siteID -> interval, corner, qualified siteName (`Tnr_Enr@i1/@i2`) |",
+  "| tree_obs_dt.csv | tallied trees of the start tally: siteID, year, patchID, species, dbh (start, cm), trees (stems on the 0.1 ha patch), growth (/yr, survivors), died (removal 0/1 over the decade; NA = lateral ingrowth, shades only) |",
   "| reg_target.csv | regeneration target per survey x corner x species (diagnostic) |",
   "",
   "## Per decade",
@@ -761,6 +825,18 @@ md <- c(
           100 * n_salvage / n_harvest_all),
   "- **Mortality target = total removal** (natural + harvest) on the shared at-risk",
   "  denominator, as in `scripts/04`; management enters as an env predictor.",
+  "- **New in v2: the tallied trees** (`tree_obs_dt.csv`) for FINN's per-tree mortality",
+  "  loss. The annualised site x species rate `mort` turns a complete removal (decade",
+  "  share 1) into an annual rate of 1; per tree it is every tree at 1, scored against",
+  "  the predicted interval death probability. `trees` carries each tallied tree's",
+  "  stems on the 0.1 ha patch, so light is computed from the expanded stand, while",
+  "  each tallied tree counts once in the likelihood (angle-count selection is by",
+  "  size, which the model conditions on).",
+  "",
+  "  | interval | at-risk tallied trees | removal share, trees | removal share, obs_dt (per stem) |",
+  "  |---|---|---|---|",
+  tree_check[, sprintf("  | %d | %d | %.3f | %.3f |", interval, at_risk_trees, tree_removal, obs_removal)],
+  "",
   sprintf("- **Regeneration** from the archive circles, classes %s (dbh 5.0-6.9 cm), r = %.2f m, stock -> flux at %.2f cm/yr over a %.1f cm band: recruits per **hectare** per period (factor %.3f per stem/ha). Off-V share of individuals: %s.",
           paste(PARAMS$reg_classes, collapse = "+"), PARAMS$reg_circle_r_m,
           PARAMS$reg_incr_cm_yr, PARAMS$reg_band_cm, flux_factor,
@@ -768,7 +844,8 @@ md <- c(
   sprintf("- Archive bwi2012 vs ACCESS2003 b3_jung (classes 5+6): %s.", reg_check),
   "- **Drought** = `z_soil_moist` from `scripts/16`, standardised per site over",
   "  2000-2022 (one baseline for both decades), placed at calendar year",
-  "  `year_t0 + k`; uncovered site-years set to 0.",
+  "  `year_t0 + k`; uncovered site-years set to 0. `drought_lag1` (v3) is the same",
+  "  anomaly one calendar year earlier (`year_t0 + k - 1`).",
   "- **Pooled scaling**: mean/sd computed once over both decades (`env_scales.csv`).",
   "",
   "## Regeneration target composition (share of recruits)",

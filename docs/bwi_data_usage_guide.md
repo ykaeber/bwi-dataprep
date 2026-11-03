@@ -316,11 +316,14 @@ builds that input set:
 ```bash
 bash scripts/fetch_dwd_drought.sh           # DWD 1 km monthly grids 2000-2022 (see data/README.md)
 Rscript scripts/16_drought_index.R          # per-site, per-year soil-moisture anomaly
-Rscript scripts/70_prepare_two_interval.R   # -> outputs/prepared/two-interval-v1/
+Rscript scripts/70_prepare_two_interval.R   # -> outputs/prepared/two-interval-v3/
 ```
 
-It needs the ACCESS2003 pipeline (`scripts/00`–`03`) and `scripts/40` to have
-run. What it does:
+It needs the ACCESS2003 pipeline (`scripts/00`–`03`; `scripts/04` only for
+an optional regression check of interval 1) and `scripts/40` to have run, and FINN from the `loss-aggregation` branch
+(`remotes::install_github("FINNverse/FINN@loss-aggregation")`), which provides
+`makeObsData()` and the per-tree mortality loss that `tree_obs_dt.csv` feeds.
+What it does:
 
 - **One code path for both decades** — the same expansion, sample sizes,
   total-removal mortality and annualised rates as `scripts/04`; interval 1
@@ -334,6 +337,16 @@ run. What it does:
   automatic rescaling switched off (`env_autoscale = FALSE`).
 - **Realised survey dates** for BWI4 (from `plot.acquisition_date`), so the
   drought years line up with the field work.
+- **Two drought covariates** in `env_dt` — `drought`, the growing-season
+  (Apr–Sep) soil-moisture anomaly of the model year, and `drought_lag1`, the
+  previous calendar year's (v3), because bark-beetle mortality of spruce
+  follows a drought by one to two years. Lower values are drier.
+- **The tallied trees** in `tree_obs_dt.csv` (v2): one row per tree of the
+  start tally with its removal 0/1 over the decade, survivor growth and the
+  stems it stands for on the 0.1 ha patch, for FINN's per-tree mortality loss
+  (`fit(loss_aggregation = c(mortality = "tree"), tree_data = ...)`). The
+  annualised site × species rate in `obs_dt$mort` cannot represent a complete
+  removal, which biased the mean annual target well above the real ~3 %/yr.
 - **Calamity salvage → natural death** in 2012→2022; the management tier
   counts regular harvest only, so the drought pulse stays in mortality.
 - **Regeneration** for both decades from the fixed-area regeneration circles
