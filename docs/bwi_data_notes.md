@@ -170,6 +170,16 @@ produced it for:
 - back-modelled dbh **≥ 7 cm** → lateral ingrowth; present at **both** dates,
   using the back-modelled state at t0
 
+That t0 row belongs to the *tree table*; it is not part of the start-of-period
+*stand*. The BWI2 tally already represents the 2002 stand, so expanding the
+back-modelled lateral-ingrowth rows into it counts those trees twice (about
+1.26× the 2002 tally's basal area). Build a model's initial stand from the start
+tally alone and its end state from the living end tally at its own end-survey
+`n_ha`. `scripts/70` (`two-interval-v3`) does not yet do this; see the README,
+*Status relative to the FINN-bwi study*. The 2012→2022 archive panel has no
+back-modelled diameters at all, so there every new tree is labelled `recruit`
+(usage guide, *Working with the latest BWI*).
+
 ## 5b. Two selection biases in the demographic cohorts
 
 Both were found by noticing that observed mortality had the wrong *shape*, not
@@ -265,10 +275,12 @@ regeneration over it, before comparing.
 
 Two consequences, both handled in `scripts/04_prepare_finn_inputs.R`:
 
-1. `period_length` must be **constant across sites** — FINN reads it as
-   `period = unique(...)` and its own comment says "currently we assume that
-   they are constant over sites". Sites are filtered to one realised interval
-   (default 10 years, the mode).
+1. `period_length` is kept **constant across sites**: sites are filtered to
+   one realised interval (default 10 years, the mode). FINN 0.1.0 required
+   this (it read one `period = unique(...)` for all sites). FINN 0.2.0 can
+   aggregate over a per-site window when sites carry different
+   `period_length` values (`period_mode = "auto"`), but the pipeline keeps the
+   exact-interval filter, so one window still applies to every site.
 2. Because FINN compares against a *mean of annual rates*, the observed `growth`
    (relative increment over the whole period) and `mort` (proportion dying over
    the whole period) are **annualised**:

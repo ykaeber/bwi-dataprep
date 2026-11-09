@@ -57,12 +57,16 @@ Rscript scripts/04_prepare_finn_inputs.R # model-ready tables
   anonymous key (check Thünen's terms for the data licence). Download with
   `scripts/fetch_bwi4*.sh` — which also note Thünen's "filtered queries, not bulk"
   guidance — then build the tree panel with `scripts/40_import_new_schema.R`:
-  same format as the ACCESS2003 pipeline, so the tree-level and plot-level
-  products apply unchanged.
+  same columns as the ACCESS2003 panel, so the tree-level and plot-level
+  products run unchanged. One difference in meaning: the archive has no
+  back-modelled diameters, so `fate == "recruit"` in the 2012→2022 panel is
+  *every* new sample tree, lateral ingrowth included (see the usage guide).
 - **Both decades together** — `scripts/70_prepare_two_interval.R` stitches
-  2002→2012 and 2012→2022 into one FINN input set with a per-year drought
-  covariate (DWD grids via `scripts/fetch_dwd_drought.sh` +
-  `scripts/16_drought_index.R`) and spatially blocked train/holdout sets.
+  2002→2012 and 2012→2022 into one FINN input set (`two-interval-v3`) with a
+  per-year drought covariate (DWD grids via `scripts/fetch_dwd_drought.sh` +
+  `scripts/16_drought_index.R`) and spatially blocked train/holdout sets. See
+  [Status](#status-relative-to-the-finn-bwi-study) for how this set differs
+  from the one the BWI study now uses.
 
 The data itself is **not** included here — it is public and re-downloadable. See
 [`data/README.md`](data/README.md) for the download commands for both releases.
@@ -71,10 +75,48 @@ The `data/` directory is gitignored.
 ## Requirements
 
 - R with `data.table` (plus `sf` / `terra` for the environment step).
-- For the two-decade FINN inputs: the `FINN` R package, `FNN`, and `ggplot2` /
-  `patchwork` (figures in `scripts/16`).
+- For the two-decade FINN inputs: the `FINN` R package, version 0.2.0 or later
+  (`remotes::install_github("FINNverse/FINN")` until the CRAN release; it has
+  `makeObsData()`, `resolveSiteIDs()` and the per-tree mortality loss), `FNN`,
+  and `ggplot2` / `patchwork` (figures in `scripts/16`).
 - `mdbtools` (only for the one-time Access import in `scripts/00`).
 - WorldClim 30″ rasters for `scripts/03` (see the usage guide).
+
+## Status relative to the FINN-bwi study
+
+The scripts here are copies of the data-preparation steps of the FINN-bwi study
+(FINN fitted to the BWI). `scripts/00`–`04`, `16` and `70` and the helpers in
+`R/` match it byte for byte as of 2026-11-09; `scripts/40` and
+`scripts/fetch_bwi4.sh` differ only in comments and messages.
+
+The two-decade set this repository writes, `two-interval-v3`, is **not** the
+set the study now fits. The study has since moved to `two-interval-v8`, which
+corrects three defects that `scripts/40` and `scripts/70` here still have:
+
+1. **Freshly dead trees counted as survivors.** The BWI records a tree dead for
+   less than about 12 months like a live sample tree, with a "freshly dead"
+   flag (`tot` in the ACCESS2003 `b2_wzp` / `b3_wzp` tables, `damage_dead` in
+   the archive's `tree` table). v3 ignores the flag in both decades.
+2. **2012–2017 losses missing at the carbon-inventory corners.** Where a corner
+   was remeasured in the 2017 carbon inventory (CI2017), BWI2022 refers to
+   CI2017 as the previous survey, so trees lost between 2012 and 2017 have no
+   2022 record. v3 takes every decade-2 fate from the 2022 records, so these
+   losses drop out of both the fates and the 2012 start stand.
+3. **Lateral ingrowth counted twice in the stand state.** Decade 1 adds the
+   back-modelled 2002 state of laterally ingrown trees to the 2002 start stand,
+   on top of the 2002 tally that already represents them (initial basal area
+   about 1.26 times BWI2's own 2002 tally). The end state carries the start
+   stand forward and adds every new tree, so a laterally ingrown tree counts
+   twice there in both decades (end basal area 1.34 and 1.20 times the design
+   estimate). In decade 2 this goes with the `recruit` meaning above.
+
+Fixes 1 and 2 arrived in the study's `two-interval-v5`, fix 3 in
+`two-interval-v8`. They have not been ported here yet. Until they are, use
+`two-interval-v3` with these defects in mind. The tree-level table of
+`bwi_tree_panel()` (ACCESS2003, 2002→2012) has defect 1 (it does not read the
+`tot` flag) but splits lateral ingrowth from recruits correctly; the
+regeneration target from the fixed-area circles is not affected by any of the
+three.
 
 ## Citing the BWI
 

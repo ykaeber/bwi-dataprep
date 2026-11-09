@@ -244,8 +244,11 @@ Rscript scripts/04_prepare_finn_inputs.R      # -> outputs/finn/{obs_dt,env_dt,i
 Two BWI-specific choices live in `scripts/04`: the single observation is placed
 at year `P` with a `period_length` column (so fitted rates are per year, not per
 decade), and `growth`/`mort` are annualised to match FINN's mean-of-annual-rates
-scoring. The data-prep contract is summarised in the `finn-dataprep` skill and
-the `C-Data_preparation` vignette in the FINN package.
+scoring. The data-prep contract is summarised in the `C-Data_preparation`
+vignette of the FINN package and in the `finn-dataprep` notes of the FINN
+repository
+([`.claude/skills/finn-dataprep/SKILL.md`](https://github.com/FINNverse/FINN/blob/main/.claude/skills/finn-dataprep/SKILL.md);
+not part of the installed package).
 
 ### 3d — ForClim and other gap models
 
@@ -277,12 +280,22 @@ products for the **2012→2022** transition — the drought decade.
    Rscript scripts/40_import_new_schema.R    # -> outputs/new_schema/panel.csv (+ corners.csv)
    ```
    `panel.csv` has the **same columns as `bwi_tree_panel()$trees`** (`time` 0/1,
-   `species_name`, `dbh`, `n_ha`, `fate`, …), so **Steps 2–3 apply unchanged** —
-   just load it in place of the tree table:
+   `species_name`, `dbh`, `n_ha`, `fate`, …), so the code of Steps 2–3 runs
+   unchanged — just load it in place of the tree table:
    ```r
    trees <- data.table::fread("outputs/new_schema/panel.csv")
-   # the Step 2 plot aggregates and Step 3 model inputs then work as-is
+   # the Step 2 plot aggregates and Step 3 model inputs then run as-is
    ```
+   **But `recruit` does not mean the same thing.** The archive carries no
+   back-modelled diameters, so `scripts/40` cannot split lateral ingrowth from
+   genuine recruits: every tree new to the 2022 angle-count sample gets
+   `fate = "recruit"` (and `is_recruit = TRUE`). Measured on the panel, the
+   median 2022 "recruit" is 32 cm and 90 % are above 12 cm, so most are lateral
+   ingrowth. Do not read `is_recruit` as recruitment in this release; take
+   recruitment from the regeneration circles (as `scripts/70` does) or apply a
+   diameter ceiling. The panel also still has two fate defects (freshly dead
+   trees, losses at the CI2017 corners); see the README, *Status relative to
+   the FINN-bwi study*.
    *Prerequisite:* `scripts/40` reuses `outputs/finn/species_dt.csv` for
    consistent species lumping across releases, so run the ACCESS2003 pipeline
    (Step 0 + `scripts/04`) once first, or point it at your own species list.
@@ -320,9 +333,21 @@ Rscript scripts/70_prepare_two_interval.R   # -> outputs/prepared/two-interval-v
 ```
 
 It needs the ACCESS2003 pipeline (`scripts/00`–`03`; `scripts/04` only for
-an optional regression check of interval 1) and `scripts/40` to have run, and FINN from the `loss-aggregation` branch
-(`remotes::install_github("FINNverse/FINN@loss-aggregation")`), which provides
-`makeObsData()` and the per-tree mortality loss that `tree_obs_dt.csv` feeds.
+an optional regression check of interval 1) and `scripts/40` to have run, and
+FINN 0.2.0 or later (`remotes::install_github("FINNverse/FINN")` until the CRAN
+release), which provides `makeObsData()` and the per-tree mortality loss that
+`tree_obs_dt.csv` feeds. (Earlier versions of this guide named the
+`loss-aggregation` development branch; that work is part of 0.2.0.) FINN 0.2.0
+numbers sites, patches and species in radix order; older versions used the
+locale's collation, so ids written under a non-`C` locale by an older FINN may
+differ.
+
+This writes `two-interval-v3`, which still has the three defects listed in the
+README (*Status relative to the FINN-bwi study*): freshly dead trees counted as
+survivors, the 2012–2017 losses at the CI2017 corners missing, and lateral
+ingrowth counted twice in the start stand (decade 1) and in the end state
+(both decades). The BWI study now uses `two-interval-v8`, which fixes all three.
+
 What it does:
 
 - **One code path for both decades** — the same expansion, sample sizes,
@@ -391,5 +416,7 @@ What it does:
 - **`docs/bwi_data_notes.md`** — the verified rationale: sampling design, the
   ingrowth trap, fate codes, the two selection-bias corrections, time handling,
   coordinates, species, sample sizes.
-- `finn-dataprep` skill (FINN package) — the `obs_dt`/`env_dt`/`init` contract.
+- FINN's `C-Data_preparation` vignette and the `finn-dataprep` notes in the
+  FINN repository (`.claude/skills/finn-dataprep/SKILL.md`) — the
+  `obs_dt`/`env_dt`/`init` contract.
 </content>
