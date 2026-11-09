@@ -175,7 +175,8 @@ That t0 row belongs to the *tree table*; it is not part of the start-of-period
 back-modelled lateral-ingrowth rows into it counts those trees twice (about
 1.26× the 2002 tally's basal area). Build a model's initial stand from the start
 tally alone and its end state from the living end tally at its own end-survey
-`n_ha`. `scripts/70` (`two-interval-v3`) does not yet do this; see the README,
+`n_ha`. `scripts/71` (`two-interval-v8`) does this; `scripts/70`
+(`two-interval-v3`, kept for earlier work) does not; see the README,
 *Status relative to the FINN-bwi study*. The 2012→2022 archive panel has no
 back-modelled diameters at all, so there every new tree is labelled `recruit`
 (usage guide, *Working with the latest BWI*).
