@@ -92,7 +92,7 @@ with the latest BWI").
 
 ## Drought (DWD)
 
-Only for the two-decade FINN inputs (`scripts/16`, `scripts/70`). The DWD
+Only for the two-decade FINN inputs (`scripts/16`, `scripts/70`, `scripts/71`). The DWD
 Climate Data Center publishes 1 km monthly grids for Germany (open data,
 CC BY 4.0, <https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/>):
 soil moisture, potential and actual evapotranspiration, and the de Martonne index.

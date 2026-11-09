@@ -292,10 +292,13 @@ products for the **2012→2022** transition — the drought decade.
    `fate = "recruit"` (and `is_recruit = TRUE`). Measured on the panel, the
    median 2022 "recruit" is 32 cm and 90 % are above 12 cm, so most are lateral
    ingrowth. Do not read `is_recruit` as recruitment in this release; take
-   recruitment from the regeneration circles (as `scripts/70` does) or apply a
-   diameter ceiling. The panel also still has two fate defects (freshly dead
-   trees, losses at the CI2017 corners); see the README, *Status relative to
-   the FINN-bwi study*.
+   recruitment from the regeneration circles (as `scripts/70` and `scripts/71`
+   do) or apply a diameter ceiling. The `scripts/40` panel also still has two
+   fate defects (freshly dead trees, losses at the CI2017 corners);
+   `scripts/91_import_new_schema_chained.R` builds the same panel with both
+   fixed (`outputs/new_schema_chained/panel.csv`, same columns; see the README,
+   *Status relative to the FINN-bwi study*). It runs after `scripts/40`, whose
+   panel it uses for a regression check.
    *Prerequisite:* `scripts/40` reuses `outputs/finn/species_dt.csv` for
    consistent species lumping across releases, so run the ACCESS2003 pipeline
    (Step 0 + `scripts/04`) once first, or point it at your own species list.
@@ -315,44 +318,71 @@ products for the **2012→2022** transition — the drought decade.
   where dead trees stay recorded as standing dead (`tree_status` 4/5). The
   BWI4 plot table also records *why* trees were removed
   (`plot.harvest_reason`: 0 regular, 1 storm, 2 insects/drought, 3 fire,
-  4 calamity of uncertain cause), which `scripts/70` uses to book salvage as
-  natural death.
+  4 calamity of uncertain cause), which `scripts/70` and `scripts/71` use to
+  book salvage as natural death.
 
-### Both decades in one model (FINN, `scripts/70`)
+### Both decades in one model (FINN, `scripts/71`)
 
 With one mortality observation per corner per decade, a single decade cannot
 separate "this species dies more" from "this decade was dry". The same corners
 observed over **2002→2012 and 2012→2022** can, which is what makes a per-year
-drought covariate worth an annual timestep. `scripts/70_prepare_two_interval.R`
-builds that input set:
+drought covariate worth an annual timestep.
+`scripts/71_prepare_two_interval_v8.R` builds the current input set,
+`two-interval-v8`, which the FINN-bwi study fits:
 
 ```bash
-bash scripts/fetch_dwd_drought.sh           # DWD 1 km monthly grids 2000-2022 (see data/README.md)
-Rscript scripts/16_drought_index.R          # per-site, per-year soil-moisture anomaly
-Rscript scripts/70_prepare_two_interval.R   # -> outputs/prepared/two-interval-v3/
+bash scripts/fetch_dwd_drought.sh               # DWD 1 km monthly grids 2000-2022 (see data/README.md)
+Rscript scripts/16_drought_index.R              # per-site, per-year soil-moisture anomaly
+Rscript scripts/70_prepare_two_interval.R       # -> two-interval-v3/ (71 reuses its split_blocks.csv)
+Rscript scripts/91_import_new_schema_chained.R  # -> outputs/new_schema_chained/ (decade-2 panel, fates fixed)
+Rscript scripts/71_prepare_two_interval_v8.R    # -> outputs/prepared/two-interval-v8/
+( cd outputs/prepared/two-interval-v8 && shasum -a 256 -c ../two-interval-v8.sha256 )
 ```
 
-It needs the ACCESS2003 pipeline (`scripts/00`–`03`; `scripts/04` only for
-an optional regression check of interval 1) and `scripts/40` to have run, and
-FINN 0.2.0 or later (`remotes::install_github("FINNverse/FINN")` until the CRAN
-release), which provides `makeObsData()` and the per-tree mortality loss that
-`tree_obs_dt.csv` feeds. (Earlier versions of this guide named the
+It needs the ACCESS2003 pipeline (`scripts/00`–`04`) and `scripts/40` to have
+run, and FINN 0.2.0 or later (`remotes::install_github("FINNverse/FINN")` until
+the CRAN release), which provides `makeObsData()` and the per-tree mortality
+loss that `tree_obs_dt.csv` feeds. (Earlier versions of this guide named the
 `loss-aggregation` development branch; that work is part of 0.2.0.) FINN 0.2.0
 numbers sites, patches and species in radix order; older versions used the
 locale's collation, so ids written under a non-`C` locale by an older FINN may
-differ.
+differ. The last line checks the result against the SHA-256 of the study's
+files (`outputs/prepared/two-interval-v8.sha256`, in git). Expect every FINN
+table and QC file to be `OK`, `split_blocks.csv` to be `FAILED` and
+`v5_v8_state.csv` / `v5_v8_identity.csv` to be missing: `scripts/71` lists
+v8's own tracts in `split_blocks.csv` (the study's file is that of its
+`two-interval-v5`, with 55 more tracts; every v8 tract has the same block and
+set in both) and drops the study's comparisons against its intermediate
+versions. The script header lists every difference from the study's script.
 
-This writes `two-interval-v3`, which still has the three defects listed in the
-README (*Status relative to the FINN-bwi study*): freshly dead trees counted as
-survivors, the 2012–2017 losses at the CI2017 corners missing, and lateral
-ingrowth counted twice in the start stand (decade 1) and in the end state
-(both decades). The BWI study now uses `two-interval-v8`, which fixes all three.
+`two-interval-v8` differs from `two-interval-v3` (`scripts/70`, kept unchanged)
+in the three defects that the README lists under *Status relative to the
+FINN-bwi study* — freshly dead trees counted as survivors, the 2012–2017 losses
+at the CI2017 corners missing, lateral ingrowth counted twice in the start
+stand (decade 1) and in the end state (both decades) — and in a third drought
+column, `drought2` = mean of `drought` and `drought_lag1`. Removing the lateral
+ingrowth from the 2002 start stand leaves 617 decade-1 site-periods without
+any start tree, so they drop out (v8: 40,787 site-periods, 20,092 + 20,695).
 
-What it does:
+**The regeneration target is a documented choice.** `obs_dt$reg` is the stock
+of 5.0–6.9 cm stems on the r = 1.75 m regeneration circle, turned into a flux
+of recruits per hectare and period at an assumed diameter increment of
+0.30 cm/yr (`PARAMS$reg_incr_cm_yr` in `scripts/71`). The increment sets the
+level, not the composition, and the level is about twice the decade-1 recruit
+flux implied by the angle-count sample. Alternative targets are being
+evaluated and are not part of this repository; until that is settled, v8
+ships this one.
+
+What `scripts/71` does (as `scripts/70`, unless marked v8):
 
 - **One code path for both decades** — the same expansion, sample sizes,
-  total-removal mortality and annualised rates as `scripts/04`; interval 1
-  reproduces `scripts/04`'s output exactly.
+  total-removal mortality and annualised rates as `scripts/04` (in `scripts/70`,
+  interval 1 reproduces `scripts/04`'s output exactly).
+- **Start and end stand from their own tallies** (v8) — the initial stand is
+  the start tally only; the end state (`ba`, `trees`, `dbh` at year 10) is the
+  living end tally expanded at its own end-survey `n_ha`. Growth and mortality
+  come from the tallied trees, as before.
+- **Freshly dead trees and CI2017 losses** (v8) — see the README.
 - **Each decade is its own site-period** — the same corner appears twice with
   a different start stand and different environment years; interval-2 site ids
   are offset, and `siteID_dt` keeps `interval` and the physical `corner`.
@@ -365,18 +395,21 @@ What it does:
 - **Two drought covariates** in `env_dt` — `drought`, the growing-season
   (Apr–Sep) soil-moisture anomaly of the model year, and `drought_lag1`, the
   previous calendar year's (v3), because bark-beetle mortality of spruce
-  follows a drought by one to two years. Lower values are drier.
+  follows a drought by one to two years. Lower values are drier. v8 adds
+  `drought2`, their mean, as a third column.
 - **The tallied trees** in `tree_obs_dt.csv` (v2): one row per tree of the
   start tally with its removal 0/1 over the decade, survivor growth and the
-  stems it stands for on the 0.1 ha patch, for FINN's per-tree mortality loss
+  stems it stands for on the 0.1 ha patch (v8: no shading-only rows of
+  laterally ingrown trees), for FINN's per-tree mortality loss
   (`fit(loss_aggregation = c(mortality = "tree"), tree_data = ...)`). The
   annualised site × species rate in `obs_dt$mort` cannot represent a complete
   removal, which biased the mean annual target well above the real ~3 %/yr.
 - **Calamity salvage → natural death** in 2012→2022; the management tier
   counts regular harvest only, so the drought pulse stays in mortality.
 - **Regeneration** for both decades from the fixed-area regeneration circles
-  (dbh 5.0–6.9 cm, r = 1.75 m), as recruits per hectare per period. The archive's
-  2012 counts are identical to ACCESS2003 `b3_jung`.
+  (dbh 5.0–6.9 cm, r = 1.75 m), as recruits per hectare per period (the
+  documented choice above). The archive's 2012 counts are identical to
+  ACCESS2003 `b3_jung`.
 - **Spatially blocked sets** — `train/`, `holdout_blocked/`, `train_quarter/` (~25 % of train) and a small
   `pilot/`, next to `national/`, all with the same files. Whole tracts with
   both decades move together, in 100 km blocks; `PREPARATION.md` reports the
@@ -395,7 +428,7 @@ What it does:
 | corner population / filters | `b0_ecke`, `b23_ecke_w`, `b3_bestock` | `scripts/01`, `scripts/02` |
 | environment | WorldClim, `b0_tab` (elevation), INSPIRE coords | `scripts/03`, `scripts/16` |
 | FINN inputs | all of the above | `scripts/04` |
-| FINN inputs, both decades | the above + inventory archive + DWD grids | `scripts/16`, `scripts/40`, `scripts/70` |
+| FINN inputs, both decades | the above + inventory archive + DWD grids | `scripts/16`, `scripts/40`, `scripts/91`, `scripts/71` (`scripts/70`: v3) |
 
 ### Constants (`R/config.R`)
 

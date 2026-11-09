@@ -61,12 +61,15 @@ Rscript scripts/04_prepare_finn_inputs.R # model-ready tables
   products run unchanged. One difference in meaning: the archive has no
   back-modelled diameters, so `fate == "recruit"` in the 2012→2022 panel is
   *every* new sample tree, lateral ingrowth included (see the usage guide).
-- **Both decades together** — `scripts/70_prepare_two_interval.R` stitches
-  2002→2012 and 2012→2022 into one FINN input set (`two-interval-v3`) with a
-  per-year drought covariate (DWD grids via `scripts/fetch_dwd_drought.sh` +
-  `scripts/16_drought_index.R`) and spatially blocked train/holdout sets. See
-  [Status](#status-relative-to-the-finn-bwi-study) for how this set differs
-  from the one the BWI study now uses.
+- **Both decades together** — `scripts/71_prepare_two_interval_v8.R` stitches
+  2002→2012 and 2012→2022 into one FINN input set (`two-interval-v8`, the
+  current set) with a per-year drought covariate (DWD grids via
+  `scripts/fetch_dwd_drought.sh` + `scripts/16_drought_index.R`) and spatially
+  blocked train/holdout sets. Its decade-2 tree panel comes from
+  `scripts/91_import_new_schema_chained.R` (the `scripts/40` panel with the
+  fates fixed). `scripts/70_prepare_two_interval.R` (`two-interval-v3`) is kept
+  unchanged for earlier work. See
+  [Status](#status-relative-to-the-finn-bwi-study).
 
 The data itself is **not** included here — it is public and re-downloadable. See
 [`data/README.md`](data/README.md) for the download commands for both releases.
@@ -78,20 +81,27 @@ The `data/` directory is gitignored.
 - For the two-decade FINN inputs: the `FINN` R package, version 0.2.0 or later
   (`remotes::install_github("FINNverse/FINN")` until the CRAN release; it has
   `makeObsData()`, `resolveSiteIDs()` and the per-tree mortality loss), `FNN`,
-  and `ggplot2` / `patchwork` (figures in `scripts/16`).
+  `sf` (the split in `scripts/71`), and `ggplot2` / `patchwork` (figures in
+  `scripts/16`).
 - `mdbtools` (only for the one-time Access import in `scripts/00`).
 - WorldClim 30″ rasters for `scripts/03` (see the usage guide).
 
 ## Status relative to the FINN-bwi study
 
 The scripts here are copies of the data-preparation steps of the FINN-bwi study
-(FINN fitted to the BWI). `scripts/00`–`04`, `16` and `70` and the helpers in
-`R/` match it byte for byte as of 2026-11-09; `scripts/40` and
-`scripts/fetch_bwi4.sh` differ only in comments and messages.
+(FINN fitted to the BWI). `scripts/00`–`04`, `16`, `70` and `91` and the
+helpers in `R/` match it byte for byte as of 2026-11-09; `scripts/40` and
+`scripts/fetch_bwi4.sh` differ only in comments and messages. `scripts/71` is
+the study's preparation of `two-interval-v8` with three changes that touch no
+FINN table (listed in its header): it builds the split itself from v3's instead
+of copying it from an intermediate study version, it drops the study's
+comparisons against those intermediate versions, and its `PREPARATION.md`
+describes v8 relative to v3. (Comments in `scripts/91` mention study scripts
+that are not part of this repository.)
 
-The two-decade set this repository writes, `two-interval-v3`, is **not** the
-set the study now fits. The study has since moved to `two-interval-v8`, which
-corrects three defects that `scripts/40` and `scripts/70` here still have:
+**`two-interval-v8` (`scripts/71`) is the current two-decade set**, the one
+the study fits. `two-interval-v3` (`scripts/70`) is kept unchanged for earlier
+work. v8 corrects three defects that `scripts/40` and `scripts/70` have:
 
 1. **Freshly dead trees counted as survivors.** The BWI records a tree dead for
    less than about 12 months like a live sample tree, with a "freshly dead"
@@ -110,13 +120,28 @@ corrects three defects that `scripts/40` and `scripts/70` here still have:
    twice there in both decades (end basal area 1.34 and 1.20 times the design
    estimate). In decade 2 this goes with the `recruit` meaning above.
 
-Fixes 1 and 2 arrived in the study's `two-interval-v5`, fix 3 in
-`two-interval-v8`. They have not been ported here yet. Until they are, use
-`two-interval-v3` with these defects in mind. The tree-level table of
-`bwi_tree_panel()` (ACCESS2003, 2002→2012) has defect 1 (it does not read the
-`tot` flag) but splits lateral ingrowth from recruits correctly; the
-regeneration target from the fixed-area circles is not affected by any of the
-three.
+Fix 1 is in `scripts/91` (decade 2) and `scripts/71` (decade 1), fix 2 in
+`scripts/91`, fix 3 in `scripts/71`; v8 also adds a third drought column,
+`drought2`. Fix 3 leaves 617 decade-1 site-periods without any start tree, so
+v8 has 40,787 site-periods (v3: 41,285; fixes 1 and 2 alone give 41,404). The tree-level table of
+`bwi_tree_panel()` (ACCESS2003, 2002→2012) still has defect 1 (it does not
+read the `tot` flag; `scripts/71` applies the fix on top of it) but splits
+lateral ingrowth from recruits correctly.
+
+**Reproducibility.** `outputs/prepared/two-interval-v8.sha256` (in git) holds
+the SHA-256 of the study's v8 files. Run against the same raw data and upstream
+outputs, `scripts/91` + `scripts/71` reproduce all 43 FINN tables and QC files
+byte for byte. `split_blocks.csv` differs by design (v8's 12,388 tracts
+instead of the study's 12,443, with the same block, set, `train_quarter` and
+`pilot` on every v8 tract), and the study's two comparison files are not
+written. The usage guide shows the check.
+
+**The regeneration target is a documented choice, not a settled one.**
+`obs_dt$reg` converts the stock of 5.0–6.9 cm stems on the r = 1.75 m
+regeneration circle into a flux at an assumed diameter increment of
+0.30 cm/yr. That increment sets the level, and the level is about twice the
+decade-1 recruit flux implied by the angle-count sample. This is v8's default.
+Alternative targets are being evaluated and are not part of this repository.
 
 ## Citing the BWI
 

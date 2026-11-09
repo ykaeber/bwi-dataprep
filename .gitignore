@@ -2,8 +2,11 @@
 /data/*
 !/data/README.md
 
-# pipeline outputs
-/outputs/
+# pipeline outputs (except the SHA-256 manifests of prepared versions)
+/outputs/*
+!/outputs/prepared/
+/outputs/prepared/*
+!/outputs/prepared/*.sha256
 /figures/
 
 # R session artifacts
