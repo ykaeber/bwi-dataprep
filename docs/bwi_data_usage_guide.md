@@ -280,12 +280,22 @@ products for the **2012→2022** transition — the drought decade.
    Rscript scripts/40_import_new_schema.R    # -> outputs/new_schema/panel.csv (+ corners.csv)
    ```
    `panel.csv` has the **same columns as `bwi_tree_panel()$trees`** (`time` 0/1,
-   `species_name`, `dbh`, `n_ha`, `fate`, …), so **Steps 2–3 apply unchanged** —
-   just load it in place of the tree table:
+   `species_name`, `dbh`, `n_ha`, `fate`, …), so the code of Steps 2–3 runs
+   unchanged — just load it in place of the tree table:
    ```r
    trees <- data.table::fread("outputs/new_schema/panel.csv")
-   # the Step 2 plot aggregates and Step 3 model inputs then work as-is
+   # the Step 2 plot aggregates and Step 3 model inputs then run as-is
    ```
+   **But `recruit` does not mean the same thing.** The archive carries no
+   back-modelled diameters, so `scripts/40` cannot split lateral ingrowth from
+   genuine recruits: every tree new to the 2022 angle-count sample gets
+   `fate = "recruit"` (and `is_recruit = TRUE`). Measured on the panel, the
+   median 2022 "recruit" is 32 cm and 90 % are above 12 cm, so most are lateral
+   ingrowth. Do not read `is_recruit` as recruitment in this release; take
+   recruitment from the regeneration circles (as `scripts/70` does) or apply a
+   diameter ceiling. The panel also still has two fate defects (freshly dead
+   trees, losses at the CI2017 corners); see the README, *Status relative to
+   the FINN-bwi study*.
    *Prerequisite:* `scripts/40` reuses `outputs/finn/species_dt.csv` for
    consistent species lumping across releases, so run the ACCESS2003 pipeline
    (Step 0 + `scripts/04`) once first, or point it at your own species list.
@@ -331,6 +341,12 @@ release), which provides `makeObsData()` and the per-tree mortality loss that
 numbers sites, patches and species in radix order; older versions used the
 locale's collation, so ids written under a non-`C` locale by an older FINN may
 differ.
+
+This writes `two-interval-v3`, which still has the three defects listed in the
+README (*Status relative to the FINN-bwi study*): freshly dead trees counted as
+survivors, the 2012–2017 losses at the CI2017 corners missing, and lateral
+ingrowth counted twice in the start stand (decade 1) and in the end state
+(both decades). The BWI study now uses `two-interval-v8`, which fixes all three.
 
 What it does:
 
