@@ -71,8 +71,10 @@ The `data/` directory is gitignored.
 ## Requirements
 
 - R with `data.table` (plus `sf` / `terra` for the environment step).
-- For the two-decade FINN inputs: the `FINN` R package, `FNN`, and `ggplot2` /
-  `patchwork` (figures in `scripts/16`).
+- For the two-decade FINN inputs: the `FINN` R package, version 0.2.0 or later
+  (`remotes::install_github("FINNverse/FINN")` until the CRAN release; it has
+  `makeObsData()`, `resolveSiteIDs()` and the per-tree mortality loss), `FNN`,
+  and `ggplot2` / `patchwork` (figures in `scripts/16`).
 - `mdbtools` (only for the one-time Access import in `scripts/00`).
 - WorldClim 30″ rasters for `scripts/03` (see the usage guide).
 

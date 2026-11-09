@@ -244,8 +244,11 @@ Rscript scripts/04_prepare_finn_inputs.R      # -> outputs/finn/{obs_dt,env_dt,i
 Two BWI-specific choices live in `scripts/04`: the single observation is placed
 at year `P` with a `period_length` column (so fitted rates are per year, not per
 decade), and `growth`/`mort` are annualised to match FINN's mean-of-annual-rates
-scoring. The data-prep contract is summarised in the `finn-dataprep` skill and
-the `C-Data_preparation` vignette in the FINN package.
+scoring. The data-prep contract is summarised in the `C-Data_preparation`
+vignette of the FINN package and in the `finn-dataprep` notes of the FINN
+repository
+([`.claude/skills/finn-dataprep/SKILL.md`](https://github.com/FINNverse/FINN/blob/main/.claude/skills/finn-dataprep/SKILL.md);
+not part of the installed package).
 
 ### 3d — ForClim and other gap models
 
@@ -320,9 +323,15 @@ Rscript scripts/70_prepare_two_interval.R   # -> outputs/prepared/two-interval-v
 ```
 
 It needs the ACCESS2003 pipeline (`scripts/00`–`03`; `scripts/04` only for
-an optional regression check of interval 1) and `scripts/40` to have run, and FINN from the `loss-aggregation` branch
-(`remotes::install_github("FINNverse/FINN@loss-aggregation")`), which provides
-`makeObsData()` and the per-tree mortality loss that `tree_obs_dt.csv` feeds.
+an optional regression check of interval 1) and `scripts/40` to have run, and
+FINN 0.2.0 or later (`remotes::install_github("FINNverse/FINN")` until the CRAN
+release), which provides `makeObsData()` and the per-tree mortality loss that
+`tree_obs_dt.csv` feeds. (Earlier versions of this guide named the
+`loss-aggregation` development branch; that work is part of 0.2.0.) FINN 0.2.0
+numbers sites, patches and species in radix order; older versions used the
+locale's collation, so ids written under a non-`C` locale by an older FINN may
+differ.
+
 What it does:
 
 - **One code path for both decades** — the same expansion, sample sizes,
@@ -391,5 +400,7 @@ What it does:
 - **`docs/bwi_data_notes.md`** — the verified rationale: sampling design, the
   ingrowth trap, fate codes, the two selection-bias corrections, time handling,
   coordinates, species, sample sizes.
-- `finn-dataprep` skill (FINN package) — the `obs_dt`/`env_dt`/`init` contract.
+- FINN's `C-Data_preparation` vignette and the `finn-dataprep` notes in the
+  FINN repository (`.claude/skills/finn-dataprep/SKILL.md`) — the
+  `obs_dt`/`env_dt`/`init` contract.
 </content>

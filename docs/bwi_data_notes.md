@@ -265,10 +265,12 @@ regeneration over it, before comparing.
 
 Two consequences, both handled in `scripts/04_prepare_finn_inputs.R`:
 
-1. `period_length` must be **constant across sites** — FINN reads it as
-   `period = unique(...)` and its own comment says "currently we assume that
-   they are constant over sites". Sites are filtered to one realised interval
-   (default 10 years, the mode).
+1. `period_length` is kept **constant across sites**: sites are filtered to
+   one realised interval (default 10 years, the mode). FINN 0.1.0 required
+   this (it read one `period = unique(...)` for all sites). FINN 0.2.0 can
+   aggregate over a per-site window when sites carry different
+   `period_length` values (`period_mode = "auto"`), but the pipeline keeps the
+   exact-interval filter, so one window still applies to every site.
 2. Because FINN compares against a *mean of annual rates*, the observed `growth`
    (relative increment over the whole period) and `mort` (proportion dying over
    the whole period) are **annualised**:
