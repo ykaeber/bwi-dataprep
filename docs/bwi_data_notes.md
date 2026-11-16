@@ -341,3 +341,46 @@ Tracts with all four corners usable: 5,887 — but only 733 with all four at M0,
 which is why `patch_mode = "ecke"` (site = corner) is the default. FINN
 simulates `patches` stochastic replicates per site and compares their mean to
 the observation, so one observed patch per site is not a limitation.
+
+## 11. Soil profiles (BWI 2012 environmental database)
+
+**Why:** the env covariates carry no site soil information (the drought index is a
+DWD soil-moisture anomaly computed for grass on one sandy loam everywhere), and in
+the FINN-bwi study the bare-ground equilibria end beech-dominated even in climates
+where the BWI's own natural forest community is oak, pine or alder.
+
+**Citation:** Benning, R., Petzold, R., Danigel, J., Mayer, S., Profft, I.,
+Steinicke, C., Hafner, S., Ahrends, B., Heinz, F., Puhlmann, H., von Wilpert, K.,
+Amberger, H., Gauer, J., Pieper, A., Wirner, M., Wallor, E., Riek, W., Janott, M.,
+Kölling, C., Mette, T., 2019. BWI 2012 Umweltdatenbank Bodenprofile. BWI 2012
+Umweltdatenbank. https://doi.org/10.3220/DATA20190625100522
+
+**Local copy (not in git):** `data/raw/openagrar_derivate_00022249/`:
+`bwi2012_umweltdatenbank_bodenprofile.mdb` (Access; read with mdbtools,
+`mdb-export`), the data paper and the German documentation in `doku/`
+(download: `data/README.md`).
+
+**Content:** 26,450 tract corners, keyed `TNR`, `ENR` (+ `LAND`):
+`01_KOPFDATEN` (one row per corner, liming), `02_KARTIEREINHEITEN` (site mapping
+units per corner with share `SOEH_ANT`, soil type `BODTYP`, nutrient class `NAEHR`,
+water-regime class `WASSER`), `03_LEITPROFIL` (horizons of the representative
+profile: texture, skeleton, bulk density, groundwater `GRUNDH2O` and perched water
+`STAUH2O`, SOC, base saturation), `04_nFk_Dehner_et_al_2015_h0` (available water
+capacity to 30-160 cm per mapping unit), `05_Corg_Humusstufe_aus_M4`. Code tables
+`x_*`, column docs `z_*`.
+
+**Coverage:** 25,899 of the 52,178 corners in `outputs/corner_metadata.csv` match
+on `Tnr`/`Enr` (the 4 x 4 km grid); the densification corners have no profile.
+The BWI's natural forest community `potNatWg` (98.8 % of corners) can fill the gap.
+
+**Prepared version:** `outputs/prepared/two-interval-v13-soil` (`scripts/73`)
+= v12 + `soil_nfk`, `soil_stagnic`, `soil_ground`, `soil_wet`, `soil_nutrient_poor`, gaps
+filled by natural forest community x state. On profiled training corners the
+waterlogging degree orders the dominants as expected (alder 3.3, birch 1.1,
+pedunculate oak 1.0, ... beech 0.25) and the nutrient class puts pine and Japanese
+larch poorest (3.7) and ash richest (1.9); nFK to 100 cm hardly separates them
+(91-125 mm, pine 111, beech 115).
+
+**Not used: NFIWADS** (Schmidt-Walter et al. 2019, LWF-BROOK90 water budgets per
+corner): it ends in 2013, so it does not cover the 2012-2022 interval with the
+2018-2020 drought; the static soil water information comes from the profiles above.

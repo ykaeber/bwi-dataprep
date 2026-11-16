@@ -62,8 +62,10 @@ Rscript scripts/04_prepare_finn_inputs.R # model-ready tables
   back-modelled diameters, so `fate == "recruit"` in the 2012→2022 panel is
   *every* new sample tree, lateral ingrowth included (see the usage guide).
 - **Both decades together** — `scripts/71_prepare_two_interval_v8.R` stitches
-  2002→2012 and 2012→2022 into one FINN input set (`two-interval-v8`, the
-  current set) with a per-year drought covariate (DWD grids via
+  2002→2012 and 2012→2022 into one FINN input set (`two-interval-v8`) with a
+  per-year drought covariate; `scripts/72` turns it into `two-interval-v12`
+  (the current set: v8 without the year-0 env row) and `scripts/73` into
+  `two-interval-v13-soil` (v12 plus static soil covariates) (DWD grids via
   `scripts/fetch_dwd_drought.sh` + `scripts/16_drought_index.R`) and spatially
   blocked train/holdout sets. Its decade-2 tree panel comes from
   `scripts/91_import_new_schema_chained.R` (the `scripts/40` panel with the
@@ -97,11 +99,28 @@ FINN table (listed in its header): it builds the split itself from v3's instead
 of copying it from an intermediate study version, it drops the study's
 comparisons against those intermediate versions, and its `PREPARATION.md`
 describes v8 relative to v3. (Comments in `scripts/91` mention study scripts
-that are not part of this repository.)
+that are not part of this repository.) `scripts/72` (v12) and `scripts/73`
+(v13-soil) are the study's preparation scripts with only their headers, paths
+and script names changed; run on the study's v8 they reproduce every file of
+its v12 and v13-soil byte for byte (checked 2026-11-16).
 
-**`two-interval-v8` (`scripts/71`) is the current two-decade set**, the one
-the study fits. `two-interval-v3` (`scripts/70`) is kept unchanged for earlier
-work. v8 corrects three defects that `scripts/40` and `scripts/70` have:
+**`two-interval-v12` (`scripts/72`) is the current two-decade set**, the one
+the study's final model is fitted on: v8 without the env row `year 0`. Every
+earlier version laid the annual env grid out as years 0..10, but FINN has no
+initial-state env row (the initial state is `init_cohort_dt`) and every env row
+drives one annual transition, so `fit()` scored the census states after 11
+transitions for a 10-year interval. v12 keeps env years 1..10 (calendar
+t0+1..t0+10, so simulated year k is calendar t0 + k) and v8's scaling; every
+other file is a byte copy of v8. **`two-interval-v13-soil` (`scripts/73`)** adds
+five static soil covariates per corner from the BWI 2012 environmental database
+(available water capacity, perched-water, groundwater and waterlogging degree,
+nutrient class; gaps filled by natural forest community x state; download in
+`data/README.md`, details in `docs/bwi_data_notes.md` section 11). The study's
+v9–v11 (alternative regeneration targets) are not part of this repository.
+
+**`two-interval-v8` (`scripts/71`)** is the base of both. `two-interval-v3`
+(`scripts/70`) is kept unchanged for earlier work. v8 corrects three defects
+that `scripts/40` and `scripts/70` have:
 
 1. **Freshly dead trees counted as survivors.** The BWI records a tree dead for
    less than about 12 months like a live sample tree, with a "freshly dead"

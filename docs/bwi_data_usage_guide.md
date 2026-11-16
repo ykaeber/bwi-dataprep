@@ -327,8 +327,11 @@ With one mortality observation per corner per decade, a single decade cannot
 separate "this species dies more" from "this decade was dry". The same corners
 observed over **2002→2012 and 2012→2022** can, which is what makes a per-year
 drought covariate worth an annual timestep.
-`scripts/71_prepare_two_interval_v8.R` builds the current input set,
-`two-interval-v8`, which the FINN-bwi study fits:
+`scripts/71_prepare_two_interval_v8.R` builds `two-interval-v8`;
+`scripts/72` derives the current input set, `two-interval-v12` (v8 without
+the env row `year 0`), on which the FINN-bwi study's final model is fitted, and
+`scripts/73` derives `two-interval-v13-soil` (v12 plus soil covariates; needs
+the soil database, see `data/README.md`):
 
 ```bash
 bash scripts/fetch_dwd_drought.sh               # DWD 1 km monthly grids 2000-2022 (see data/README.md)
@@ -337,7 +340,16 @@ Rscript scripts/70_prepare_two_interval.R       # -> two-interval-v3/ (71 reuses
 Rscript scripts/91_import_new_schema_chained.R  # -> outputs/new_schema_chained/ (decade-2 panel, fates fixed)
 Rscript scripts/71_prepare_two_interval_v8.R    # -> outputs/prepared/two-interval-v8/
 ( cd outputs/prepared/two-interval-v8 && shasum -a 256 -c ../two-interval-v8.sha256 )
+Rscript scripts/72_prepare_two_interval_v12.R          # -> outputs/prepared/two-interval-v12/
+Rscript scripts/73_prepare_two_interval_v13_soil.R     # -> outputs/prepared/two-interval-v13-soil/
 ```
+
+Check v12 and v13-soil against the study's manifests *before* their scripts
+rewrite them (each script writes its own `../<version>.sha256`), e.g. with
+`git show HEAD:outputs/prepared/two-interval-v12.sha256 > /tmp/v12.sha256` and
+`shasum -a 256 -c /tmp/v12.sha256` inside the version folder. The same
+differences as for v8 apply (`split_blocks.csv`, the two v5 comparison files);
+every other file matches.
 
 It needs the ACCESS2003 pipeline (`scripts/00`–`04`) and `scripts/40` to have
 run, and FINN 0.2.0 or later (`remotes::install_github("FINNverse/FINN")` until

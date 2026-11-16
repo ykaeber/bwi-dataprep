@@ -101,6 +101,23 @@ soil moisture, potential and actual evapotranspiration, and the de Martonne inde
 bash scripts/fetch_dwd_drought.sh            # 2000-2022 -> data/raw/dwd_drought/ (~1,100 files)
 ```
 
+## Soil profiles (BWI 2012 environmental database)
+
+Only for `two-interval-v13-soil` (`scripts/73`). Benning, R. et al., 2019.
+BWI 2012 Umweltdatenbank Bodenprofile. BWI 2012 Umweltdatenbank.
+<https://doi.org/10.3220/DATA20190625100522> (OpenAgrar; check the licence on
+the landing page before redistributing). Download the archive from the DOI and
+unpack it to
+
+```
+data/raw/openagrar_derivate_00022249/bwi2012_umweltdatenbank_bodenprofile.mdb
+```
+
+`scripts/73` reads the Access file directly with mdbtools (`mdb-export`), so
+mdbtools must be on the PATH for that step. The tables and how they are used
+are described in [`../docs/bwi_data_notes.md`](../docs/bwi_data_notes.md),
+section 11.
+
 ## Climate
 
 Not stored here. WorldClim 2.1 30s `wc2.1_30s_bio` (BIO1, BIO12) and
