@@ -2,17 +2,23 @@
 ## bwi-dataprep | scripts/71_prepare_two_interval.R
 ##
 ## Two-interval FINN inputs, from the cached BWI tables to the prepared set in
-## ONE script: two-interval-v13-soil, the set the final model of the FINN-bwi
-## study is fitted on. BWI2 -> BWI3 (2002 -> 2012) and BWI3 -> BWI4 (2012 ->
-## 2022) on the same corners, annual timestep, per-year drought, static soil,
-## spatially blocked sets.
+## ONE script: two-interval-v16-ingrowth. BWI2 -> BWI3 (2002 -> 2012) and
+## BWI3 -> BWI4 (2012 -> 2022) on the same corners, annual timestep, per-year
+## drought, static soil, recruitment = ingrowth across 7 cm, spatially blocked
+## sets.
 ##
-## This script replaces the chain of earlier versions of this repository
-## (scripts/70 two-interval-v3 -> 71 v8 -> 72 v12 -> 73 v13-soil; all in the
-## git history). The version name stays v13-soil because the FINN tables it
-## writes are those files, byte for byte (see RELATION TO THE FINN-bwi STUDY).
-## The numbered items below are the decisions that differ from the study's
-## first two-interval set (v3); items 5 and 6 were versions v12 and v13-soil.
+## VERSIONS. The script writes one version (PARAMS$version); a change of the
+## preparation is a new version in a new commit:
+##   two-interval-v13-soil     git tag two-interval-v13-soil: the set the final
+##                             model of the FINN-bwi study is fitted on
+##                             (recruitment from the regeneration circles)
+##   two-interval-v16-ingrowth this commit: v13-soil with recruitment = the
+##                             angle-count trees that crossed 7 cm (item 7);
+##                             every other file as in v13-soil
+## The chain before (scripts/70 v3 -> 71 v8 -> 72 v12 -> 73 v13-soil) is in
+## the git history. The numbered items below are the decisions that differ from
+## the study's first two-interval set (v3); items 5 and 6 were versions v12 and
+## v13-soil.
 ##
 ##  1. FRESHLY DEAD TREES. The BWI records a tree dead for less than about 12
 ##     months like a live sample tree, with a "freshly dead" flag. Decade 1:
@@ -89,6 +95,28 @@
 ##     equilibria end beech-dominated even where the natural forest community
 ##     is oak, pine or alder. Scales: mean / sd over the env rows (years
 ##     1..10) of the national set, appended after the other env_scales rows.
+##  7. RECRUITMENT = INGROWTH ACROSS 7 CM, NOTHING ELSE (new in v16).
+##     obs_dt$reg is the angle-count trees that crossed the 7 cm caliper within
+##     the decade, at their end-survey n_ha, per corner x species, per ha and
+##     period. The quantity is the one FINN's recruits are (trees entering at
+##     7 cm), so no stock-to-flux assumption and no regeneration-circle data
+##     enter, neither for the level nor for the species.
+##     - decade 1: BWI's back-modelled label (fate "recruit": new tree whose
+##       2002 dbh is < 7 cm); a new tree dead at its first tally is not one.
+##     - decade 2: the archive has no back-modelled diameters, so every new 2022
+##       tree is "recruit" in the panel, most of them lateral ingrowth (older
+##       trees that newly fall inside the angle-count radius). Each living new
+##       tree counts with P = Pr(D > dbh_2022 - 7 cm), D the decadal increment
+##       of surviving tallied trees that started in [7, 12) cm, same decade and
+##       species; the same rule is calibrated against the official label on
+##       decade 1 (factor c per species, pooled for rare species).
+##     - recruit_obs_weight for FINN's recruitment likelihood = tallied decade-1
+##       recruits per stem/ha (reg_obs_weight.csv); the weighted counts are not
+##       whole numbers.
+##     The level is about a third of v13-soil's circle target, which had an
+##     assumed 6.3-year residence in the 5-7 cm band and a 2002 circle radius
+##     (r = 1.75 m instead of 2 m from BWI 2012 on). Same rule as the study's
+##     two-interval-v10 (its scripts/141), there on v8.
 ##
 ## Two details keep growth and mortality the same data as in the study's
 ## two-interval-v5 (= fixes 1 and 2 without fix 3):
@@ -105,20 +133,6 @@
 ## The corner filters and the dbh screen run on the full panel, lateral
 ## ingrowth included.
 ##
-## REGENERATION TARGET -- AS FITTED, WITH A KNOWN GEOMETRY ERROR. obs_dt$reg is
-## the stock of stems in the 5.0-6.9 cm band on the regeneration circle
-## (archive size classes 5 + 6), turned into a flux of recruits per ha and
-## period at an assumed diameter increment of 0.30 cm/yr through the band
-## (PARAMS reg_*). The increment sets the level only, not the composition.
-## KNOWN ERROR: the script takes the 2002 circle (r = 1.75 m) and a 1.9 cm
-## band. From BWI 2012 on, classes 1-6 are counted on r = 2.00 m (tree numbers
-## 2xxx; the 1.75 m circle is the 2002 design), and the band 5.0-6.9 cm is
-## 2.0 cm wide, so this target is 1.375 x too high. It is kept here because it
-## is the target the final model was fitted on. Two corrected targets are being
-## refitted in the FINN-bwi study (geometry corrected only; the circle pattern
-## scaled to the recruits of the angle-count sample, i.e. trees that crossed
-## 7 cm); the one chosen will replace this block as a new version.
-##
 ## SPLIT. The tract -> set table is fixed data, inputs/split_tracts.csv
 ## (Tnr, block, set, train_quarter, pilot; the split of the study's first
 ## two-interval set, 100 km blocks on EPSG:3035, holdout blocks drawn with seed
@@ -129,13 +143,14 @@
 ## neither train_quarter nor pilot; a block unknown to the table stops the
 ## script.
 ##
-## RELATION TO THE FINN-bwi STUDY. The study writes the set in three steps
-## (its scripts/131 v8, 148 v12, 198 v13-soil). Run on the same inputs this
-## script reproduces every FINN table of the study's two-interval-v13-soil
-## byte for byte (outputs/prepared/two-interval-v13-soil.sha256, the study's
-## manifest). Check with
-##   (cd outputs/prepared/two-interval-v13-soil && shasum -a 256 -c ../two-interval-v13-soil.sha256)
-## Expected differences, none of them in a FINN table:
+## RELATION TO THE FINN-bwi STUDY. The study writes v13-soil in three steps
+## (its scripts/131 v8, 148 v12, 198 v13-soil). Run on the same inputs, this
+## script at tag two-interval-v13-soil reproduces every FINN table of the
+## study's two-interval-v13-soil byte for byte (the study's manifest is
+## outputs/prepared/two-interval-v13-soil.sha256 at that tag). v16-ingrowth
+## differs from it only in obs_dt.csv (column reg) and national/reg_target.csv,
+## and adds reg_obs_weight.csv and reg_calibration.csv. Expected differences
+## from the study's v13-soil, none of them in a FINN table:
 ##  a. split_blocks.csv lists this set's 12,388 tracts; the study's file lists
 ##     12,443 (55 tracts whose only site-periods are the dropped decade-1 ones).
 ##  b. The study's comparisons against its intermediate versions
@@ -144,8 +159,7 @@
 ##     asserted inside this script.
 ##  c. PREPARATION.md describes the whole preparation.
 ## "v5" in comments and variable names refers to the study's two-interval-v5.
-## A run writes its own manifest over the one in git; compare with
-## `git diff outputs/prepared/two-interval-v13-soil.sha256`.
+## A run writes its manifest to outputs/prepared/<version>.sha256.
 ##
 ## Inputs (run scripts/00-04, 16, 40 and 91 first)
 ##   data/bwi_csv/*                        ACCESS2003 tables (bwi_tree_panel,
@@ -164,8 +178,10 @@
 ##   outputs/site_drought_annual.csv       per-year drought anomaly (scripts/16)
 ##   inputs/split_tracts.csv               the fixed tract -> set table (in git)
 ##
-## Outputs  outputs/prepared/two-interval-v13-soil/
+## Outputs  outputs/prepared/two-interval-v16-ingrowth/
 ##   PREPARATION.md          decisions, checks, PARAMS
+##   reg_obs_weight.csv      recruit_obs_weight for fit()
+##   reg_calibration.csv     decade-1 calibration of the decade-2 recruit rule
 ##   soil_corners.csv        soil per corner of the national set, with the source
 ##                           of every value
 ##   national/obs_dt.csv     observations, both decades (obs at year 10)
@@ -180,13 +196,13 @@
 ##   national/tree_obs_dt.csv      tallied trees of the start tally: siteID, year,
 ##                                 patchID, species, dbh (start), trees (stems on
 ##                                 the 0.1 ha patch), growth (/yr), died (0/1)
-##   national/reg_target.csv       regeneration target per corner x species
+##   national/reg_target.csv       recruits per corner x interval x species
 ##   national/wzp_qc_i{1,2}.csv    basal-area conservation of the START expansion
 ##   train/, holdout_blocked/, train_quarter/, pilot/   the same FINN tables for
 ##                           the spatially blocked split, siteIDs renumbered
 ##                           1..n, siteID_dt keeps siteID_national
 ##   split_blocks.csv        tract -> block -> set (this set's tracts)
-##   outputs/prepared/two-interval-v13-soil.sha256   SHA-256 of every file
+##   outputs/prepared/two-interval-v16-ingrowth.sha256   SHA-256 of every file
 ##
 ## Helpers sourced (none of them changes what the data mean):
 ##   R/config.R    paths and constants (WZP_BAF, PATCH_SIZE_HA, bhd2ba, AV_WZP)
@@ -209,7 +225,7 @@ source("R/bwi_trees.R")
 
 #=#=# PARAMS #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 PARAMS <- list(
-  version = "two-interval-v13-soil",
+  version = "two-interval-v16-ingrowth",
 
   ## decade-2 panel with the fates fixed (scripts/91)
   panel2_dir = file.path(OUT_DIR, "new_schema_chained"),
@@ -250,13 +266,12 @@ PARAMS <- list(
   ## uncertain. 0 regular and 5 unknown stay harvest.
   calamity_reasons = 1:4,
 
-  ## Regeneration target (stock -> flux; a documented choice, see the header):
-  ## stems in the 5.0-6.9 cm band on the r = 1.75 m circle, crossing 7 cm at
-  ## reg_incr_cm_yr.
-  reg_classes    = c(5L, 6L),
-  reg_circle_r_m = 1.75,
-  reg_incr_cm_yr = 0.30,          # sets the MAGNITUDE only; composition is free of it
-  reg_band_cm    = 1.9,
+  ## Regeneration target (item 7 of the header): the angle-count trees that
+  ## crossed the 7 cm caliper within the decade, nothing else.
+  reg_min_dbh        = WZP_MIN_BHD,  # 7 cm, the caliper threshold of the angle count
+  reg_incr_class     = c(7, 12),     # cm: small survivors whose decadal increment stands in for a new tree's (decade-2 rule)
+  reg_min_incr_n     = 30L,          # small survivors per species and decade needed for a species' own increment distribution
+  reg_min_calib_n    = 30L,          # official decade-1 recruits per species needed for a species' own calibration factor
 
   ## Block size of the spatially blocked split (km on EPSG:3035), as in the
   ## fixed split table; used to place each tract in its block
@@ -677,35 +692,92 @@ i2 <- prepare_interval(p2, c2, "interval 2 (2012->2022)", V, env_in, drought)
 rm(p2); gc(verbose = FALSE)
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-## Regeneration target, both decades, from the archive circles (the documented
-## choice of the header: circle stock -> flux at PARAMS$reg_incr_cm_yr)
+## Regeneration target, both decades (item 7 of the header): the angle-count
+## trees that crossed 7 cm within the decade, per corner x species, at their
+## end-survey n_ha, per ha per period. No regeneration-circle data.
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-rg <- read_archive("regeneration", c("plot_id", "tree_species",
-                                     "tree_size_class", "tree_count"))
-rg <- merge(rg, pl[, .(plot_id = id, interval_name, Tnr, Enr)], by = "plot_id")
-rg <- rg[interval_name %in% c("bwi2012", "bwi2022") &
-         tree_size_class %in% PARAMS$reg_classes]
-rg <- merge(rg, splk, by.x = "tree_species", by.y = "Ba", all.x = TRUE)
-off_V <- rg[, .(share_off_V = sum(tree_count * !(species_name %in% V)) / sum(tree_count)),
-            by = interval_name]
-area_ha     <- pi * PARAMS$reg_circle_r_m^2 / 1e4
-flux_factor <- PARAMS$reg_incr_cm_yr / PARAMS$reg_band_cm * P   # band stock -> recruits per period
-reg_tab <- rg[species_name %in% V,
-              .(n_circle = sum(tree_count)), by = .(interval_name, Tnr, Enr, species_name)]
-reg_tab[, reg := n_circle / area_ha * flux_factor]                # recruits / ha / period
+corners1 <- unique(i1$siteID_dt$siteName)          # "Tnr_Enr" before the decade suffix
+corners2 <- unique(i2$siteID_dt$siteName)
 
-attach_reg <- function(iv, survey) {
-  sid <- unique(iv$siteID_dt[, .(siteID, siteName)])
-  sid[, c("Tnr", "Enr") := tstrsplit(siteName, "_", fixed = TRUE, type.convert = TRUE)]
-  obs <- merge(iv$obs, sid[, .(siteID, Tnr, Enr)], by = "siteID", all.x = TRUE)
-  obs <- merge(obs, reg_tab[interval_name == survey, .(Tnr, Enr, species_name, reg_new = reg)],
-               by = c("Tnr", "Enr", "species_name"), all.x = TRUE)
+## decade 1: BWI's own back-modelled label (fate "recruit" = new tree whose
+## 2002 dbh is < 7 cm); a new tree dead at its first tally is not a recruit
+r1 <- bwi_tree_panel()$trees
+r1[, corner := paste(Tnr, Enr, sep = "_")]
+r1 <- r1[corner %chin% corners1 & species_name %chin% V]
+fd3 <- bwi("b3_wzp", select = c("Tnr", "Enr", "Bnr", "tot"))[tot == 1L, .(Tnr, Enr, Bnr, fd_end = TRUE)]
+r1 <- merge(r1, fd3, by = c("Tnr", "Enr", "Bnr"), all.x = TRUE)
+r1[is.na(fd_end), fd_end := FALSE]
+r1 <- r1[!(fd_end & fate %chin% c("recruit", "ingrowth_lateral"))]
+w1 <- dcast(r1[, .(treeKey, time, dbh, n_ha)], treeKey ~ time, value.var = c("dbh", "n_ha"))
+setnames(w1, c("dbh_0", "dbh_1", "n_ha_0", "n_ha_1"), c("dbh_t0", "dbh_t1", "n_ha_t0", "n_ha_t1"))
+t1 <- merge(unique(r1[, .(treeKey, corner, species_name, fate)]), w1, by = "treeKey")
+rm(r1); gc(verbose = FALSE)
+
+## decade 2: the archive has no back-modelled diameters, so every new 2022 tree
+## is "recruit" in the panel, most of them lateral ingrowth
+r2 <- fread(file.path(PARAMS$panel2_dir, "panel.csv"))
+r2[, corner := paste(Tnr, Enr, sep = "_")]
+r2 <- r2[corner %chin% corners2 & species_name %chin% V]
+w2 <- dcast(r2[, .(treeKey, time, dbh, n_ha)], treeKey ~ time, value.var = c("dbh", "n_ha"))
+setnames(w2, c("dbh_0", "dbh_1", "n_ha_0", "n_ha_1"), c("dbh_t0", "dbh_t1", "n_ha_t0", "n_ha_t1"))
+t2 <- merge(unique(r2[, .(treeKey, corner, species_name, fate)]), w2, by = "treeKey")
+t2 <- merge(t2, r2[time == 1L, .(treeKey, living_t1 = living)], by = "treeKey")
+rm(r2); gc(verbose = FALSE)
+
+## probability that a new tree crossed 7 cm within the decade:
+## P = Pr(D > dbh_t1 - 7 cm), D the decadal increment of surviving tallied
+## trees that started in [7, 12) cm, same decade and species (pooled where a
+## species has fewer than reg_min_incr_n of them)
+incr_of <- function(t) t[fate == "survivor" & dbh_t0 >= PARAMS$reg_incr_class[1] & dbh_t0 < PARAMS$reg_incr_class[2] & is.finite(dbh_t1),
+                         .(species_name, D = dbh_t1 - dbh_t0)]
+p_true <- function(new, inc) {
+  ok <- inc[, .N, by = species_name][N >= PARAMS$reg_min_incr_n, species_name]
+  pooled <- sort(inc$D)
+  new[, P := {
+    ref <- if (species_name[1] %chin% ok) sort(inc[species_name == .BY$species_name, D]) else pooled
+    1 - findInterval(dbh_t1 - PARAMS$reg_min_dbh, ref) / length(ref)   # share of increments strictly above the gap
+  }, by = species_name]
+  new[]
+}
+new1 <- p_true(t1[fate %chin% c("recruit", "ingrowth_lateral") & is.finite(dbh_t1)], incr_of(t1))
+new2 <- p_true(t2[fate == "recruit" & living_t1 == TRUE & is.finite(dbh_t1)], incr_of(t2))
+
+## calibrate the rule on decade 1, where the official label exists:
+## c = official recruit density / rule density, per species (pooled where a
+## species has fewer than reg_min_calib_n official recruits)
+REG_CAL <- merge(new1[, .(rule = sum(n_ha_t1 * P)), by = species_name],
+                 new1[fate == "recruit", .(official = sum(n_ha_t1), n_official = .N), by = species_name],
+                 by = "species_name", all = TRUE)
+REG_CAL[is.na(official), `:=`(official = 0, n_official = 0L)]
+reg_c_pool <- REG_CAL[, sum(official) / sum(rule)]
+REG_CAL[, c := fifelse(n_official >= PARAMS$reg_min_calib_n & rule > 0, official / rule, reg_c_pool)]
+REG_SEP <- new1[, .(n = .N, mean_P = mean(P), stems_ha = sum(n_ha_t1), rule_stems_ha = sum(n_ha_t1 * P)), by = fate]
+new2 <- merge(new2, REG_CAL[, .(species_name, c)], by = "species_name", all.x = TRUE)
+new2[is.na(c), c := reg_c_pool]
+message(sprintf("[regeneration] decade-1 calibration of the decade-2 rule: pooled c = %.3f", reg_c_pool))
+
+## recruits per corner x species, per ha per period; decade 1 = the official
+## label, decade 2 = the calibrated expected density
+reg_tab <- rbind(
+  new1[fate == "recruit", .(reg = sum(n_ha_t1), n_tallied = .N), by = .(corner, species_name)][, interval := 1L],
+  new2[, .(reg = sum(n_ha_t1 * P * c), n_tallied = sum(P * c)), by = .(corner, species_name)][, interval := 2L])
+## observation weight for FINN's recruitment likelihood: tallied decade-1
+## recruits per stem/ha (fit(): recruit_obs_weight)
+reg_obs_weight <- reg_tab[interval == 1L, sum(n_tallied) / sum(reg)]
+message(sprintf("[regeneration] recruit_obs_weight = %.6g tallied recruits per stem/ha", reg_obs_weight))
+rm(t1, t2, w1, w2); gc(verbose = FALSE)
+
+attach_reg <- function(iv, k) {
+  sid <- unique(iv$siteID_dt[, .(siteID, corner = siteName)])
+  obs <- merge(iv$obs, sid, by = "siteID", all.x = TRUE)
+  obs <- merge(obs, reg_tab[interval == k, .(corner, species_name, reg_new = reg)],
+               by = c("corner", "species_name"), all.x = TRUE)
   obs[, reg := fifelse(is.na(reg_new), 0, reg_new)]
-  obs[, c("reg_new", "Tnr", "Enr") := NULL]
+  obs[, c("reg_new", "corner") := NULL]
   obs
 }
-i1$obs <- attach_reg(i1, "bwi2012")
-i2$obs <- attach_reg(i2, "bwi2022")
+i1$obs <- attach_reg(i1, 1L)
+i2$obs <- attach_reg(i2, 2L)
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 ## Stitch: one species map, unique siteIDs, pooled z-scaling
@@ -905,6 +977,8 @@ fwrite(species_dt,         file.path(OUT_NAT, "species_dt.csv"))
 fwrite(sids,               file.path(OUT_NAT, "siteID_dt.csv"))
 fwrite(trees[, ..tree_keep], file.path(OUT_NAT, "tree_obs_dt.csv"))
 fwrite(reg_tab,            file.path(OUT_NAT, "reg_target.csv"))
+fwrite(data.table(recruit_obs_weight = reg_obs_weight), file.path(OUT_VER, "reg_obs_weight.csv"))
+fwrite(REG_CAL,            file.path(OUT_VER, "reg_calibration.csv"))
 fwrite(i1$qc,              file.path(OUT_NAT, "wzp_qc_i1.csv"))
 fwrite(i2$qc,              file.path(OUT_NAT, "wzp_qc_i2.csv"))
 #' soil per site of a set: corner, siteID (the set's numbering), values, sources
@@ -1114,8 +1188,9 @@ md <- c(
   sprintf("Written by `scripts/71_prepare_two_interval.R` (decade-2 panel: `scripts/91_import_new_schema_chained.R`) at commit `%s` on %s.",
           commit, format(Sys.time(), "%Y-%m-%d %H:%M")),
   "",
-  "This is the set the final model of the FINN-bwi study is fitted on. SHA-256 of every file except",
-  "this one: `../two-interval-v13-soil.sha256`; the script header says which files match the study's.",
+  "Recruitment = the angle-count trees that crossed 7 cm (item 7); every other file as in",
+  "`two-interval-v13-soil`, the set the final model of the FINN-bwi study is fitted on (git tag",
+  sprintf("`two-interval-v13-soil`). SHA-256 of every file except this one: `../%s.sha256`.", PARAMS$version),
   "",
   "## Decisions (numbered as in the script header; the first set of the study, v3, is the reference)",
   "",
@@ -1151,14 +1226,22 @@ md <- c(
   sprintf("rounding of near-zero expansions: with the start allocation without lateral ingrowth alone, %d (decade 1) / %d (decade 2) at-risk tallied trees would move in or out of the sample. End-survey rows of dead and harvested trees keep their start expansion (they are not part of the end stand).",
           i1$diag$n_sample_flip, i2$diag$n_sample_flip),
   "",
-  "## Regeneration target: as fitted, with a known geometry error",
+  "## Regeneration target: ingrowth across 7 cm, nothing else (item 7)",
   "",
-  sprintf("`obs_dt$reg` = stems of archive size classes %s (5.0-6.9 cm) on the r = %.2f m circle, turned from stock into a flux of recruits per ha and period at an assumed diameter increment of %.2f cm/yr through the %.1f cm band (factor %.3f per stem/ha and period). The increment sets the level only, not the composition. **Known error:** from BWI 2012 on these classes are counted on r = 2.00 m (1.75 m is the 2002 design) and the band is 2.0 cm wide, so this target is 1.375 x too high; it is about three times the recruits of the angle-count sample (trees that crossed 7 cm). It is kept because the final model was fitted on it; corrected targets are being refitted in the FINN-bwi study, and the one chosen becomes a new version.",
-          paste(PARAMS$reg_classes, collapse = "+"), PARAMS$reg_circle_r_m,
-          PARAMS$reg_incr_cm_yr, PARAMS$reg_band_cm, flux_factor),
-  sprintf("Off-V share of the circle stems: %s.",
-          paste(off_V[, sprintf("%s %.1f %%", interval_name, 100 * share_off_V)], collapse = ", ")),
+  "`obs_dt$reg` = the angle-count trees that crossed the 7 cm caliper within the decade, at their end-survey n_ha, per corner x species, per ha and period. No regeneration-circle data enter, neither for the level nor for the species. Decade 1: BWI's back-modelled label (2002 dbh < 7 cm); a new tree dead at its first tally is not a recruit. Decade 2: the archive has no back-modelled diameters, so each living new 2022 tree counts with P = Pr(D > dbh_2022 - 7 cm), D the decadal increment of surviving tallied trees that started in [7, 12) cm (same decade and species; pooled below the minimum count), times a factor c that calibrates the same rule against the official label on decade 1.",
   "",
+  sprintf("Observation weight for FINN's recruitment likelihood (`fit(recruit_obs_weight = )`, also in `reg_obs_weight.csv`): **%.9g** tallied decade-1 recruits per stem/ha (1 / %.6g). The weighted counts are not whole numbers (a recruit's n_ha depends on its dbh; decade 2 holds expected counts).",
+          reg_obs_weight, 1 / reg_obs_weight),
+  "",
+  sprintf("Decade-1 calibration (`reg_calibration.csv`): pooled c = %.3f; per species where >= %d official recruits:",
+          reg_c_pool, PARAMS$reg_min_calib_n), "",
+  md_tab(REG_CAL), "",
+  "How well the rule separates recruits from lateral ingrowth on decade 1 (mean P by official fate):", "",
+  md_tab(REG_SEP), "",
+  "Recruits per ha and year, national:", "",
+  md_tab(merge(reg_tab[, .(reg = sum(reg)), by = interval],
+               data.table(interval = 1:2, corners = c(length(corners1), length(corners2))), by = "interval")[
+    , .(interval, corners, recruits_per_ha_yr = reg / corners / P)]), "",
   "## Checks",
   "",
   "### Initial stand and end state, per set and decade",
@@ -1203,7 +1286,7 @@ md <- c(
   "",
   "| file | content |",
   "|---|---|",
-  "| obs_dt.csv | siteID, year, species, ba, dbh, trees (end state: fresh expansion of the living end tally), growth, growth_n, mort, n_at_risk, n_died (tallied trees), reg (circles), period_length |",
+  "| obs_dt.csv | siteID, year, species, ba, dbh, trees (end state: fresh expansion of the living end tally), growth, growth_n, mort, n_at_risk, n_died (tallied trees), reg (ingrowth across 7 cm, per ha and period), period_length |",
   "| env_dt.csv | siteID, year 1..10, mat_c, map_mm, elev_m, x, y, management, drought, drought_lag1, drought2, soil_nfk, soil_stagnic, soil_ground, soil_wet, soil_nutrient_poor -- z-scaled ONCE over both decades; management left on 0..3 |",
   "| env_unscaled_dt.csv / env_scales.csv | natural scale and the pooled mean/sd |",
   "| soil_dt.csv | corner, siteID, unscaled soil values and the source of each |",
@@ -1211,7 +1294,7 @@ md <- c(
   "| species_dt.csv | the 15 species, one code map for both decades |",
   "| siteID_dt.csv | siteID -> interval, corner, qualified siteName (`Tnr_Enr@i1/@i2`) |",
   "| tree_obs_dt.csv | tallied trees of the start tally: siteID, year, patchID, species, dbh (start, cm), trees (stems on the 0.1 ha patch), growth (/yr, survivors), died (removal 0/1 over the decade; no NA rows) |",
-  "| reg_target.csv | regeneration target per survey x corner x species (diagnostic) |",
+  "| reg_target.csv | recruits per corner x interval x species: reg (per ha and period), n_tallied (diagnostic) |",
   "| wzp_qc_i{1,2}.csv | basal-area conservation of the start expansion |",
   "",
   "## Per decade",
@@ -1253,8 +1336,9 @@ md <- c(
   "  expected stand still balances (start stems - deaths + recruits = end stems in expectation),",
   "  but no longer per site. The state targets are therefore noisier per site-period than v3's",
   "  carried construction, and unbiased instead of inflated.",
-  "- **The regeneration target is too high** (section above). With the inflated end state gone, an",
-  "  over-prediction of stems by a fitted model points at the recruitment target, not at ingrowth.",
+  "- **The regeneration target is sparse.** A 7 cm tree is tallied only within 1.75 m of the corner",
+  "  (angle count, factor 4), so most site-periods hold no recruit; decade 2 is a calibrated expected",
+  "  count, not an observed one.",
   "- **Tier M1 is near-empty in both decades** (BAF 4: one tallied tree carries 4 m2/ha).",
   "- Environment exists only for interval-1 corners.",
   "",

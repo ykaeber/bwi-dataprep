@@ -63,7 +63,8 @@ Rscript scripts/04_prepare_finn_inputs.R # model-ready tables
   *every* new sample tree, lateral ingrowth included (see the usage guide).
 - **Both decades together** — one script, `scripts/71_prepare_two_interval.R`,
   stitches 2002→2012 and 2012→2022 into one FINN input set,
-  `two-interval-v13-soil`: per-year drought (DWD grids via
+  `two-interval-v16-ingrowth`: recruitment as the trees that crossed 7 cm,
+  per-year drought (DWD grids via
   `scripts/fetch_dwd_drought.sh` + `scripts/16_drought_index.R`), static soil
   covariates, and spatially blocked train/holdout sets from a fixed split table
   (`inputs/split_tracts.csv`). Its decade-2 tree panel comes from
@@ -94,12 +95,19 @@ helpers in `R/` match it byte for byte as of 2026-11-09; `scripts/40` and
 `scripts/fetch_bwi4.sh` differ only in comments and messages. (Comments in
 `scripts/91` mention study scripts that are not part of this repository.)
 
-**`two-interval-v13-soil` (`scripts/71`) is the two-decade set the study's final
-model is fitted on.** The study builds it in three steps (v8, then v12 without
-the year-0 env row, then v13-soil with soil); here one script does all of it.
-The earlier chain of this repository (`scripts/70` v3, `71` v8, `72` v12, `73`
-v13-soil) is in the git history. Against a plain inventory panel the set makes
-six decisions (numbered as in the script header):
+**Versions.** `scripts/71` writes one version; a change of the preparation is
+a new version in a new commit.
+
+| version | commit | recruitment target | use |
+|---|---|---|---|
+| `two-interval-v13-soil` | tag `two-interval-v13-soil` | regeneration circles, 5.0–6.9 cm stock turned into a flux (known geometry error, below) | the FINN-bwi study's final model |
+| `two-interval-v16-ingrowth` | current | trees that crossed 7 cm in the angle-count sample, nothing else | the simple recruitment variant; inputs for other models (e.g. a PPA) |
+
+The study builds v13-soil in three steps (v8, then v12 without the year-0 env
+row, then v13-soil with soil); here one script does all of it. The earlier
+chain of this repository (`scripts/70` v3, `71` v8, `72` v12, `73` v13-soil)
+is in the git history. Against a plain inventory panel the set makes seven
+decisions (numbered as in the script header):
 
 1. **Freshly dead trees are not survivors.** The BWI records a tree dead for
    less than about 12 months like a live sample tree, with a "freshly dead"
@@ -125,6 +133,8 @@ six decisions (numbered as in the script header):
    waterlogging degree, nutrient class; gaps filled by natural forest community
    x state; download in `data/README.md`, details in `docs/bwi_data_notes.md`
    section 11).
+7. **Recruitment = ingrowth across 7 cm** (v16). See *The regeneration target*
+   below.
 
 Earlier versions of the study and of this repository lacked items 1–3:
 
@@ -161,21 +171,36 @@ were evaluated on.
 
 **Reproducibility.** `outputs/prepared/two-interval-v13-soil.sha256` (in git)
 holds the SHA-256 of the study's files. Run against the same raw data and
-upstream outputs, `scripts/91` + `scripts/71` reproduce every FINN table of
-the study's v13-soil byte for byte. `split_blocks.csv` differs by design (this
+upstream outputs, `scripts/91` + `scripts/71` at tag `two-interval-v13-soil`
+reproduce every FINN table of the study's v13-soil byte for byte (checked
+2026-11-17). v16-ingrowth differs from v13-soil only in `obs_dt.csv` (column
+`reg`) and `national/reg_target.csv`, plus two new files (`reg_obs_weight.csv`,
+`reg_calibration.csv`). `split_blocks.csv` differs by design (this
 set's 12,388 tracts instead of the study's 12,443, with the same block, set,
 `train_quarter` and `pilot` on every tract), and the study's four comparison
 files against its intermediate versions are not written. The usage guide shows
 the check.
 
-**The regeneration target has a known error.** `obs_dt$reg` converts the stock
-of 5.0–6.9 cm stems on the regeneration circle into a flux at an assumed
-diameter increment of 0.30 cm/yr. The script takes the 2002 circle
-(r = 1.75 m) and a 1.9 cm band; from BWI 2012 on the circle is r = 2 m and the
-band is 2.0 cm wide, so the target is 1.375 times too high. It stays because the
-study's final model was fitted on it. Corrected targets (geometry only; the
-circle pattern scaled to the recruits of the angle-count sample) are being
-refitted, and the chosen one will become the next version of this script.
+**The regeneration target.** FINN's recruits enter the stand at 7 cm, so the
+target in `obs_dt$reg` should count trees entering at 7 cm.
+
+- **v16-ingrowth** counts exactly that: the angle-count trees that crossed the
+  7 cm caliper within the decade, at their end-survey `n_ha`, per corner and
+  species, per ha and period. Nothing from the regeneration circles enters,
+  neither the level nor the species. Decade 1 uses the BWI's back-modelled
+  label (2002 dbh below 7 cm). The 2022 archive has no back-modelled diameters,
+  so a new 2022 tree may be a recruit or an older tree that newly falls inside
+  the angle-count radius (lateral ingrowth); each counts with the probability
+  that it crossed 7 cm in the decade, from the decadal increments of small
+  tallied survivors of its species, calibrated against the official label on
+  decade 1. The target is sparse (a 7 cm tree is tallied only within 1.75 m
+  of the corner). `reg_obs_weight.csv` holds the weight for FINN's recruitment
+  likelihood (`fit(recruit_obs_weight = )`).
+- **v13-soil** (the study's final model) converts the stock of 5.0–6.9 cm
+  stems on the regeneration circle into a flux at an assumed diameter increment
+  of 0.30 cm/yr. It takes the 2002 circle (r = 1.75 m) and a 1.9 cm band; from
+  BWI 2012 on the circle is r = 2 m and the band 2.0 cm wide, so that target is
+  1.375 times too high, and its level is about three times the ingrowth above.
 
 ## Citing the BWI
 
