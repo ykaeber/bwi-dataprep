@@ -1,11 +1,18 @@
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-## bwi-dataprep | scripts/71_prepare_two_interval_v8.R
+## bwi-dataprep | scripts/71_prepare_two_interval.R
 ##
-## Two-interval FINN inputs, VERSION 8 (two-interval-v8): the set the FINN-bwi
-## study fits. Same design as two-interval-v3 (scripts/70, which stays as it
-## is): BWI2 -> BWI3 (2002 -> 2012) and BWI3 -> BWI4 (2012 -> 2022) on the same
-## corners, annual timestep, per-year drought, spatially blocked sets. v8
-## removes three defects of v3 and adds one drought column:
+## Two-interval FINN inputs, from the cached BWI tables to the prepared set in
+## ONE script: two-interval-v13-soil, the set the final model of the FINN-bwi
+## study is fitted on. BWI2 -> BWI3 (2002 -> 2012) and BWI3 -> BWI4 (2012 ->
+## 2022) on the same corners, annual timestep, per-year drought, static soil,
+## spatially blocked sets.
+##
+## This script replaces the chain of earlier versions of this repository
+## (scripts/70 two-interval-v3 -> 71 v8 -> 72 v12 -> 73 v13-soil; all in the
+## git history). The version name stays v13-soil because the FINN tables it
+## writes are those files, byte for byte (see RELATION TO THE FINN-bwi STUDY).
+## The numbered items below are the decisions that differ from the study's
+## first two-interval set (v3); items 5 and 6 were versions v12 and v13-soil.
 ##
 ##  1. FRESHLY DEAD TREES. The BWI records a tree dead for less than about 12
 ##     months like a live sample tree, with a "freshly dead" flag. Decade 1:
@@ -44,6 +51,44 @@
 ##  4. drought2 = (drought + drought_lag1) / 2 on the natural scale, z-scaled
 ##     with its pooled national mean / sd, appended as the last column of
 ##     env_dt / env_unscaled_dt and the last row of env_scales.
+##  5. NO ENV ROW FOR THE START CENSUS (was v12). FINN has no initial-state env
+##     row: the initial state is init_cohort_dt, and every env row drives one
+##     annual transition, so an env row `year 0` made fit() score the census
+##     state after 11 transitions for a 10-year interval. env_dt and
+##     env_unscaled_dt keep years 1..10 = calendar t0+1..t0+10; the census
+##     stays at obs year 10 with period_length 10, and simulated year k is
+##     calendar t0 + k. The pooled scales are computed on the grid 0..10
+##     before the year-0 rows are dropped, as the fitted set has them (scaling
+##     over 1..10 would move every scaled value slightly).
+##  6. STATIC SOIL (was v13-soil). Five covariates per corner from the BWI 2012
+##     environmental database (Benning et al. 2019,
+##     https://doi.org/10.3220/DATA20190625100522; download in data/README.md,
+##     details in docs/bwi_data_notes.md section 11), the same value in every
+##     env row of a site, appended after drought2:
+##       soil_nfk           available water capacity to 100 cm (mm), table
+##                          04_nFk_Dehner_et_al_2015_h0 column nfk_100
+##       soil_stagnic       perched-water (stagnic) degree 0-6 from the
+##                          harmonised water-regime class WASSER (S0 .. S6; "S"
+##                          very deep = 0.25, S0 deep = 0.5); 0 on terrestrial
+##                          and groundwater classes
+##       soil_ground        groundwater degree 0-6 from WASSER (G1 .. G6, G0 =
+##                          0.5, "G2/3" = 2.5); 0 on terrestrial and stagnic classes
+##       soil_wet           waterlogging degree 0-6 = soil_stagnic + soil_ground
+##                          (a class is either S or G; a range such as "S3-S6"
+##                          or "T3-S1" takes the mean of its two ends)
+##       soil_nutrient_poor nutrient class NAEHR, 1 eutrophic .. 6 dystrophic
+##     A corner with two mapping units gets their area-weighted mean (SOEH_ANT,
+##     normalised; equal weights when the share is missing). The database
+##     covers the 4 x 4 km grid; every missing value is filled per variable
+##     with the mean over profiled corners of the same natural forest community
+##     (potNatWg) in the same state (Bl) when at least min_group corners hold
+##     it, else of the community nationally, else of the state; soil_dt.csv
+##     records the source of every value. Why: no other covariate describes
+##     the site's soil (the drought index is a soil-moisture anomaly for grass
+##     on one sandy loam everywhere), and without soil the bare-ground
+##     equilibria end beech-dominated even where the natural forest community
+##     is oak, pine or alder. Scales: mean / sd over the env rows (years
+##     1..10) of the national set, appended after the other env_scales rows.
 ##
 ## Two details keep growth and mortality the same data as in the study's
 ## two-interval-v5 (= fixes 1 and 2 without fix 3):
@@ -60,67 +105,75 @@
 ## The corner filters and the dbh screen run on the full panel, lateral
 ## ingrowth included.
 ##
-## REGENERATION TARGET -- A DOCUMENTED CHOICE, NOT A SETTLED ONE. obs_dt$reg is
-## the stock of stems in the 5.0-6.9 cm band on the r = 1.75 m circle (archive
-## size classes 5 + 6), turned into a flux of recruits per ha and period at an
-## assumed diameter increment of 0.30 cm/yr through the 1.9 cm band
-## (PARAMS reg_*). The increment sets the level only, not the composition. This
-## is v8's default target; it is about twice the decade-1 recruit flux implied
-## by the angle-count sample. Alternative targets (a lower increment, recruits
-## from the angle-count sample, a hybrid of both) are being evaluated and are
-## not part of this repository; until that is decided, v8 ships this one.
+## REGENERATION TARGET -- AS FITTED, WITH A KNOWN GEOMETRY ERROR. obs_dt$reg is
+## the stock of stems in the 5.0-6.9 cm band on the regeneration circle
+## (archive size classes 5 + 6), turned into a flux of recruits per ha and
+## period at an assumed diameter increment of 0.30 cm/yr through the band
+## (PARAMS reg_*). The increment sets the level only, not the composition.
+## KNOWN ERROR: the script takes the 2002 circle (r = 1.75 m) and a 1.9 cm
+## band. From BWI 2012 on, classes 1-6 are counted on r = 2.00 m (tree numbers
+## 2xxx; the 1.75 m circle is the 2002 design), and the band 5.0-6.9 cm is
+## 2.0 cm wide, so this target is 1.375 x too high. It is kept here because it
+## is the target the final model was fitted on. Two corrected targets are being
+## refitted in the FINN-bwi study (geometry corrected only; the circle pattern
+## scaled to the recruits of the angle-count sample, i.e. trees that crossed
+## 7 cm); the one chosen will replace this block as a new version.
 ##
-## SPLIT. v3's split (scripts/70, two-interval-v3/split_blocks.csv) is reused:
-## every tract keeps its v3 set, block and train_quarter / pilot membership. A
-## tract new in v8 (it has v8 site-periods but none in v3, since the fixed fates
-## move a few corners across the corner filters; 6 tracts) takes the set of its
-## v3 block and joins neither train_quarter nor pilot; a block unknown to v3
-## stops the script.
+## SPLIT. The tract -> set table is fixed data, inputs/split_tracts.csv
+## (Tnr, block, set, train_quarter, pilot; the split of the study's first
+## two-interval set, 100 km blocks on EPSG:3035, holdout blocks drawn with seed
+## 42). It is read, not recomputed, so every published set keeps the sites it
+## was evaluated on. A tract that is not in the table (it has site-periods
+## here but not in that first set, since the fixed fates move a few corners
+## across the corner filters; 6 tracts) takes the set of its block and joins
+## neither train_quarter nor pilot; a block unknown to the table stops the
+## script.
 ##
-## RELATION TO THE FINN-bwi STUDY. The study writes v8 with its
-## scripts/131_prepare_two_interval_v8.R, a copy of its scripts/92 (v5) with
-## fixes 3 and 4 added, reading v5's split_blocks.csv and checking against the
-## v5 and v7 folders. This script is that script with three changes, none of
-## which touches a FINN table:
-##  a. The split rule of the study's scripts/92 is applied here to v8's tracts
-##     (block from the tract's EPSG:3035 coordinates; set from v3) instead of
-##     copying v5's split_blocks.csv. Every v8 tract gets the block, set,
-##     train_quarter and pilot it has in the study's file; the file lists v8's
-##     12,388 tracts instead of v5's 12,443 (55 tracts whose only site-periods
-##     are the dropped decade-1 ones), so it is not byte-identical to the
-##     study's.
-##  b. The regression checks against the study's v5 and v7 folders are dropped
-##     (v5_v8_state.csv, v5_v8_identity.csv, the siteID / env / env_scales
-##     comparisons and the v5-to-v8 siteID map). Every check on the stitched
-##     tables themselves is kept. The dropped decade-1 site-periods are counted
-##     from this script's own start-empty sites instead of from v5.
-##  c. PREPARATION.md describes v8 relative to v3.
+## RELATION TO THE FINN-bwi STUDY. The study writes the set in three steps
+## (its scripts/131 v8, 148 v12, 198 v13-soil). Run on the same inputs this
+## script reproduces every FINN table of the study's two-interval-v13-soil
+## byte for byte (outputs/prepared/two-interval-v13-soil.sha256, the study's
+## manifest). Check with
+##   (cd outputs/prepared/two-interval-v13-soil && shasum -a 256 -c ../two-interval-v13-soil.sha256)
+## Expected differences, none of them in a FINN table:
+##  a. split_blocks.csv lists this set's 12,388 tracts; the study's file lists
+##     12,443 (55 tracts whose only site-periods are the dropped decade-1 ones).
+##  b. The study's comparisons against its intermediate versions
+##     (v5_v8_state.csv, v5_v8_identity.csv, v8_v12_env_check.csv,
+##     v12_v13_env_check.csv) are not written; the same identities are
+##     asserted inside this script.
+##  c. PREPARATION.md describes the whole preparation.
 ## "v5" in comments and variable names refers to the study's two-interval-v5.
-## outputs/prepared/two-interval-v8.sha256 holds the SHA-256 of the study's
-## files; the 43 FINN tables and QC files of a run of this script match it (see
-## README.md). Check with
-##   (cd outputs/prepared/two-interval-v8 && shasum -a 256 -c ../two-interval-v8.sha256)
-## which reports split_blocks.csv as FAILED (change a) and v5_v8_state.csv /
-## v5_v8_identity.csv as missing (change b).
+## A run writes its own manifest over the one in git; compare with
+## `git diff outputs/prepared/two-interval-v13-soil.sha256`.
 ##
-## Inputs (run scripts/00-04, 16, 40, 70 and 91 first)
+## Inputs (run scripts/00-04, 16, 40 and 91 first)
 ##   data/bwi_csv/*                        ACCESS2003 tables (bwi_tree_panel,
 ##                                         species_lookup; b2_wzp/b3_wzp `tot` =
 ##                                         freshly dead; b2_baeume for the check)
 ##   data/raw/bwi4/{plot,regeneration}.csv inventory archive (scripts/fetch_bwi4.sh)
+##   data/raw/openagrar_derivate_00022249/bwi2012_umweltdatenbank_bodenprofile.mdb
+##                                         soil profiles (data/README.md; read with
+##                                         mdb-export from mdbtools)
 ##   outputs/new_schema_chained/panel.csv  BWI3->BWI4 tree panel, fates fixed (scripts/91)
 ##   outputs/calibration_set_corners.csv   interval-1 corners, all tiers (scripts/02)
 ##   outputs/calibration_set_species.csv   the 15 species (scripts/02)
 ##   outputs/corner_env.csv                climate, elevation, x/y (scripts/03)
+##   outputs/corner_metadata.csv           state and natural forest community per
+##                                         corner, for the soil gap filling (scripts/01)
 ##   outputs/site_drought_annual.csv       per-year drought anomaly (scripts/16)
-##   outputs/prepared/two-interval-v3/split_blocks.csv   the split (scripts/70)
+##   inputs/split_tracts.csv               the fixed tract -> set table (in git)
 ##
-## Outputs  outputs/prepared/two-interval-v8/  (the layout of v3, plus drought2)
-##   PREPARATION.md          what changed vs v3, decisions, checks, PARAMS
+## Outputs  outputs/prepared/two-interval-v13-soil/
+##   PREPARATION.md          decisions, checks, PARAMS
+##   soil_corners.csv        soil per corner of the national set, with the source
+##                           of every value
 ##   national/obs_dt.csv     observations, both decades (obs at year 10)
-##   national/env_dt.csv     covariates per siteID x year 0..10, z-scaled once
-##                           over both decades (management kept on 0..3), incl. drought2
+##   national/env_dt.csv     covariates per siteID x year 1..10, z-scaled once
+##                           over both decades (management kept on 0..3), incl.
+##                           drought2 and the five soil columns
 ##   national/env_unscaled_dt.csv, env_scales.csv
+##   national/soil_dt.csv          siteID, corner, unscaled soil values, sources
 ##   national/init_cohort_dt.csv   start-of-decade stands (start tally only)
 ##   national/species_dt.csv       the 15 species, one code map for both decades
 ##   national/siteID_dt.csv        siteID <-> interval, physical corner (crosswalk)
@@ -132,16 +185,17 @@
 ##   train/, holdout_blocked/, train_quarter/, pilot/   the same FINN tables for
 ##                           the spatially blocked split, siteIDs renumbered
 ##                           1..n, siteID_dt keeps siteID_national
-##   split_blocks.csv        tract -> block -> set (v8's tracts)
+##   split_blocks.csv        tract -> block -> set (this set's tracts)
+##   outputs/prepared/two-interval-v13-soil.sha256   SHA-256 of every file
 ##
 ## Helpers sourced (none of them changes what the data mean):
 ##   R/config.R    paths and constants (WZP_BAF, PATCH_SIZE_HA, bhd2ba, AV_WZP)
 ##   R/bwi_io.R    bwi(): read a cached ACCESS2003 table
 ##   R/wzp.R       angle-count expansion and tallied sample sizes
 ##   R/bwi_trees.R bwi_tree_panel(): the ACCESS2003 BWI2->BWI3 tree panel
-## Packages: data.table, FINN (0.2.0), sf, FNN.
+## Packages: data.table, FINN (0.2.0), sf, FNN; mdbtools (mdb-export) on the PATH.
 ##
-## Run from the repository root:  Rscript scripts/71_prepare_two_interval_v8.R
+## Run from the repository root:  Rscript scripts/71_prepare_two_interval.R
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 
 suppressPackageStartupMessages({
@@ -155,12 +209,12 @@ source("R/bwi_trees.R")
 
 #=#=# PARAMS #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 PARAMS <- list(
-  version = "two-interval-v8",
+  version = "two-interval-v13-soil",
 
   ## decade-2 panel with the fates fixed (scripts/91)
   panel2_dir = file.path(OUT_DIR, "new_schema_chained"),
-  ## v3 (scripts/70): its split_blocks.csv is the split that v8 keeps
-  v3_dir     = file.path(OUT_DIR, "prepared", "two-interval-v3"),
+  ## the fixed tract -> set table (header, SPLIT)
+  split_file = file.path("inputs", "split_tracts.csv"),
 
   ## Nominal patch area for the angle-count expansion (ha); must equal the
   ## patch_size passed to fit(). Same as scripts/04.
@@ -204,14 +258,21 @@ PARAMS <- list(
   reg_incr_cm_yr = 0.30,          # sets the MAGNITUDE only; composition is free of it
   reg_band_cm    = 1.9,
 
-  ## Block size of the spatially blocked split (km on EPSG:3035), as scripts/70;
-  ## used to place each tract in its v3 block
+  ## Block size of the spatially blocked split (km on EPSG:3035), as in the
+  ## fixed split table; used to place each tract in its block
   block_km = 100,
-  ## the four subsets written beside national/ (membership from v3's split_blocks.csv)
+  ## the four subsets written beside national/ (membership from split_file)
   sets = c("train", "holdout_blocked", "train_quarter", "pilot"),
 
+  ## Soil (item 6 of the header)
+  soil_mdb    = file.path(BWI_RAW_DIR, "openagrar_derivate_00022249", "bwi2012_umweltdatenbank_bodenprofile.mdb"),
+  corner_meta = file.path(OUT_DIR, "corner_metadata.csv"),   # Tnr, Enr, Bl, potNatWg for the gap filling (scripts/01)
+  nfk_col     = "nfk_100",        # rooting zone of a mature stand taken as 100 cm (the 160 cm value adds deep subsoil few roots reach)
+  soil_vars   = c("soil_nfk", "soil_stagnic", "soil_ground", "soil_wet", "soil_nutrient_poor"),
+  min_group   = 10L,              # profiled corners a community x state (or community) group needs to fill a gap
+
   bwi4_dir = file.path(BWI_RAW_DIR, "bwi4"),
-  seed     = 42L                  # as scripts/70 (nothing below draws at random; kept for parity)
+  seed     = 42L                  # the split's seed (nothing below draws at random; kept for parity)
 )
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 
@@ -219,7 +280,8 @@ set.seed(PARAMS$seed)
 P        <- PARAMS$period
 OUT_VER  <- file.path(OUT_DIR, "prepared", PARAMS$version)
 OUT_NAT  <- file.path(OUT_VER, "national")
-stopifnot(file.exists(file.path(PARAMS$v3_dir, "split_blocks.csv")),   # run scripts/70 first
+stopifnot(file.exists(PARAMS$split_file),                              # in git
+          file.exists(PARAMS$soil_mdb), file.exists(PARAMS$corner_meta), # data/README.md, scripts/01
           file.exists(file.path(PARAMS$panel2_dir, "panel.csv")),      # run scripts/91 first
           !dir.exists(OUT_VER))                       # a version is never modified
 dir.create(OUT_NAT, recursive = TRUE, showWarnings = FALSE)
@@ -703,6 +765,92 @@ for (v in scale_vars) {
   set(env_dt, j = v, value = (env_dt[[v]] - s$mean) / s$sd)
 }
 
+## item 5: no env row for the start census. The scales above are those of the
+## grid 0..P (as the fitted set has them); the year-0 rows go now.
+stopifnot(setequal(unique(env_dt$year), 0:P))
+n_env_grid <- nrow(env_dt)
+env_dt       <- env_dt[year != 0L]
+env_unscaled <- env_unscaled[year != 0L]
+stopifnot(setequal(unique(env_dt$year), seq_len(P)), nrow(env_dt) == n_env_grid * P / (P + 1L))
+
+## item 6: static soil per corner, gaps filled by community x state
+mdb <- function(tab) fread(cmd = paste("mdb-export", shQuote(PARAMS$soil_mdb), shQuote(tab)), na.strings = c("NA", "-9999", ""))
+units <- mdb("02_KARTIEREINHEITEN")[, .(TNR, ENR, SOEH_NR, SOEH_ANT, WASSER, NAEHR)]
+nfk   <- mdb("04_nFk_Dehner_et_al_2015_h0")[, c("TNR", "ENR", "SOEH_NR", PARAMS$nfk_col), with = FALSE]
+setnames(nfk, PARAMS$nfk_col, "nfk")
+units <- merge(units, nfk, by = c("TNR", "ENR", "SOEH_NR"), all.x = TRUE)
+
+## water-regime class -> stagnic and groundwater degree; a range "A-B" is the mean of its ends
+wr_end <- function(code) {
+  lvl <- suppressWarnings(as.numeric(sub("^[TSG]", "", sub("2/3", "2.5", code))))
+  fam <- substr(code, 1, 1)
+  lvl[fam == "S" & code == "S"]  <- 0.25                 # very deep perched water
+  lvl[fam == "S" & code == "S0"] <- 0.5                  # deep perched water
+  lvl[fam == "G" & code == "G0"] <- 0.5                  # groundwater fresh, depth not given
+  list(stagnic = ifelse(fam == "S", lvl, 0), ground = ifelse(fam == "G", lvl, 0))
+}
+wr_parse <- function(w) {
+  out <- data.table(stagnic = NA_real_, ground = NA_real_)[rep(1L, length(w))]
+  ok <- !is.na(w) & w != "NA"
+  ends <- tstrsplit(w[ok], "-", fixed = TRUE, fill = NA_character_)
+  a <- wr_end(ends[[1]]); b <- if (length(ends) > 1) wr_end(ifelse(is.na(ends[[2]]), ends[[1]], ends[[2]])) else a
+  out[ok, `:=`(stagnic = (a$stagnic + b$stagnic) / 2, ground = (a$ground + b$ground) / 2)]
+  out
+}
+units[, c("stagnic", "ground") := wr_parse(WASSER)]
+stopifnot(units[!is.na(WASSER) & WASSER != "NA", all(is.finite(stagnic) & is.finite(ground))],
+          units[, all(is.na(stagnic) | (stagnic >= 0 & stagnic <= 6 & ground >= 0 & ground <= 6 & (stagnic == 0 | ground == 0 | grepl("-", WASSER))))])
+units[, w := fifelse(is.na(SOEH_ANT), 1, SOEH_ANT)]
+wmean <- function(x, w) { ok <- is.finite(x); if (!any(ok)) NA_real_ else sum(x[ok] * w[ok]) / sum(w[ok]) }
+prof <- units[, .(soil_nfk = wmean(nfk, w), soil_stagnic = wmean(stagnic, w), soil_ground = wmean(ground, w),
+                  soil_nutrient_poor = wmean(NAEHR, w), n_units = .N), by = .(TNR, ENR)]
+prof[, soil_wet := soil_stagnic + soil_ground]
+prof[, corner := paste0(TNR, "_", ENR)]
+
+meta <- fread(PARAMS$corner_meta)[, .(corner = paste0(Tnr, "_", Enr), Bl, potNatWg)]
+meta <- unique(meta, by = "corner")
+nat_sites <- unique(sids[, .(siteID, corner)])
+stopifnot(!anyDuplicated(nat_sites$siteID))
+SC <- merge(data.table(corner = unique(nat_sites$corner)), meta, by = "corner", all.x = TRUE)
+stopifnot(!anyNA(SC$Bl))
+SC <- merge(SC, prof[, c("corner", PARAMS$soil_vars, "n_units"), with = FALSE], by = "corner", all.x = TRUE)
+SC[, has_profile := !is.na(n_units)]
+for (v in PARAMS$soil_vars) {
+  src <- paste0(v, "_source")
+  SC[, (src) := fifelse(is.finite(get(v)), "profile", NA_character_)]
+  g_cs <- SC[is.finite(get(v)), .(m = mean(get(v)), n = .N), by = .(potNatWg, Bl)][n >= PARAMS$min_group]
+  g_c  <- SC[is.finite(get(v)), .(m = mean(get(v)), n = .N), by = .(potNatWg)][n >= PARAMS$min_group]
+  g_s  <- SC[is.finite(get(v)), .(m = mean(get(v))), by = .(Bl)]
+  SC[g_cs, on = .(potNatWg, Bl), `:=`(fill_cs = i.m)]
+  SC[g_c,  on = .(potNatWg),     `:=`(fill_c = i.m)]
+  SC[g_s,  on = .(Bl),           `:=`(fill_s = i.m)]
+  SC[!is.finite(get(v)) & is.finite(fill_cs), c(v, src) := list(fill_cs, "community x state")]
+  SC[!is.finite(get(v)) & is.finite(fill_c),  c(v, src) := list(fill_c, "community")]
+  SC[!is.finite(get(v)) & is.finite(fill_s),  c(v, src) := list(fill_s, "state")]
+  SC[, c("fill_cs", "fill_c", "fill_s") := NULL]
+}
+stopifnot(SC[, all(vapply(.SD, function(x) all(is.finite(x)), logical(1))), .SDcols = PARAMS$soil_vars])
+SOIL_COVER <- rbindlist(lapply(PARAMS$soil_vars, function(v) SC[, .N, by = c(source = paste0(v, "_source"))][, `:=`(variable = v, share = N / sum(N))]))
+print(dcast(SOIL_COVER, variable ~ source, value.var = "share"))
+
+## soil per site; scales from the national env rows (years 1..P), appended after
+## the other env_scales rows; the soil columns go after drought2
+site_soil_nat <- merge(nat_sites, SC[, c("corner", PARAMS$soil_vars, paste0(PARAMS$soil_vars, "_source")), with = FALSE],
+                       by = "corner", all.x = TRUE)
+stopifnot(!anyNA(site_soil_nat[, PARAMS$soil_vars, with = FALSE]))
+envu_soil <- merge(env_unscaled[, .(siteID)], site_soil_nat, by = "siteID")
+SOIL_SCALES <- data.table(variable = PARAMS$soil_vars,
+                          mean = vapply(PARAMS$soil_vars, function(v) mean(envu_soil[[v]]), numeric(1)),
+                          sd   = vapply(PARAMS$soil_vars, function(v) sd(envu_soil[[v]]), numeric(1)))
+stopifnot(all(SOIL_SCALES$sd > 0), nrow(envu_soil) == nrow(env_unscaled))
+print(SOIL_SCALES)
+env_scales <- rbind(env_scales, SOIL_SCALES)
+env_unscaled[site_soil_nat, on = "siteID", (PARAMS$soil_vars) := mget(paste0("i.", PARAMS$soil_vars))]
+env_dt[site_soil_nat, on = "siteID", (PARAMS$soil_vars) := mget(paste0("i.", PARAMS$soil_vars))]
+for (v in PARAMS$soil_vars) set(env_dt, j = v, value = (env_dt[[v]] - SOIL_SCALES[variable == v, mean]) / SOIL_SCALES[variable == v, sd])
+stopifnot(!anyNA(env_dt[, PARAMS$soil_vars, with = FALSE]),
+          env_dt[, all(vapply(.SD, uniqueN, integer(1)) == 1L), by = siteID, .SDcols = PARAMS$soil_vars][, all(V1)])
+
 obs[, period_length := P]
 obs_keep <- c("siteID", "year", "species", "ba", "dbh", "trees", "growth",
               "growth_n", "mort", "n_at_risk", "n_died", "reg", "period_length")
@@ -720,7 +868,7 @@ stopifnot(
   uniqueN(sids[, .(siteID, siteName)]) == n_sites,
   setequal(unique(env_dt$siteID), unique(obs$siteID)),
   setequal(unique(init$siteID), unique(obs$siteID)),
-  all(env_dt[, .N, by = siteID]$N == P + 1L),                       # years 0..P each
+  all(env_dt[, .N, by = siteID]$N == P),                            # years 1..P each
   !anyNA(env_dt),
   all(obs$year == P),
   all(obs$species %in% species_dt$species),
@@ -734,7 +882,7 @@ stopifnot(
 ## stand (v3 / the study's v5) they were site-periods; here they are not.
 dropped <- i1$start_empty[siteName %chin% c1[period_length == P, siteName]]
 stopifnot(!any(paste0(dropped$siteName, "@i1") %chin% sids$siteName))
-message(sprintf("[sites] v8 %d site-periods: %d decade-1 site-periods dropped (start stand expands to no tree; %d of them without any tallied start tree)",
+message(sprintf("[sites] %d site-periods: %d decade-1 site-periods dropped (start stand expands to no tree; %d of them without any tallied start tree)",
                 n_sites, nrow(dropped), dropped[n_start_tally == 0L, .N]))
 
 ## the per-tree removal must reproduce the decade removal implied by obs_dt$mort
@@ -759,9 +907,19 @@ fwrite(trees[, ..tree_keep], file.path(OUT_NAT, "tree_obs_dt.csv"))
 fwrite(reg_tab,            file.path(OUT_NAT, "reg_target.csv"))
 fwrite(i1$qc,              file.path(OUT_NAT, "wzp_qc_i1.csv"))
 fwrite(i2$qc,              file.path(OUT_NAT, "wzp_qc_i2.csv"))
+#' soil per site of a set: corner, siteID (the set's numbering), values, sources
+soil_table <- function(site_corner) {
+  x <- merge(unique(site_corner[, .(siteID, corner)]),
+             SC[, c("corner", PARAMS$soil_vars, paste0(PARAMS$soil_vars, "_source")), with = FALSE],
+             by = "corner", all.x = TRUE)
+  stopifnot(!anyNA(x[, PARAMS$soil_vars, with = FALSE]), !anyDuplicated(x$siteID))
+  x[order(siteID)]
+}
+fwrite(soil_table(sids),   file.path(OUT_NAT, "soil_dt.csv"))
+fwrite(SC,                 file.path(OUT_VER, "soil_corners.csv"))
 
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
-## Spatially blocked split: v3's, with the rule for new tracts
+## Spatially blocked split: the fixed table, with the rule for new tracts
 #=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=
 ## one location per tract (corner_env x/y are the tract's WGS84 lon/lat)
 sids[, Tnr := as.integer(sub("_.*$", "", corner))]
@@ -772,24 +930,26 @@ tr[, `:=`(east = xy[, 1], north = xy[, 2])]
 bm <- PARAMS$block_km * 1000
 tr[, block := sprintf("E%03d_N%03d", floor(east / bm), floor(north / bm))]
 
-## Every tract keeps the set, block and subset membership it has in
-## two-interval-v3/split_blocks.csv. A tract that is new in v8 (a decade-2
-## corner that passes the corner filters only with the fixed fates, in a tract
-## without v3 site-periods) takes the set of its v3 block and joins neither
-## train_quarter nor pilot; a block unknown to v3 stops the script (it would
-## need a new holdout decision).
-v3_split <- fread(file.path(PARAMS$v3_dir, "split_blocks.csv"))
-v3_blocks <- unique(v3_split[, .(block, set)])
-stopifnot(!anyDuplicated(v3_blocks$block))
-tr <- merge(tr, v3_split[, .(Tnr, block_v3 = block, set, train_quarter, pilot)], by = "Tnr", all.x = TRUE)
-new_tracts <- tr[is.na(block_v3), Tnr]
-stopifnot(identical(tr[!is.na(block_v3), block], tr[!is.na(block_v3), block_v3]),
-          all(tr[is.na(block_v3), block] %in% v3_blocks$block))
-set_of_block <- setNames(v3_blocks$set, v3_blocks$block)
-tr[is.na(block_v3), `:=`(set = unname(set_of_block[block]),
-                         train_quarter = FALSE, pilot = FALSE)]
-tr[, block_v3 := NULL]
-message(sprintf("[split] %d tracts, %d of them new in v8 (set from their v3 block)",
+## Every tract keeps the set, block and subset membership it has in the fixed
+## table. A tract that is not in it (a decade-2 corner that passes the corner
+## filters only with the fixed fates, in a tract without site-periods in the
+## study's first set) takes the set of its block and joins neither
+## train_quarter nor pilot; a block unknown to the table stops the script (it
+## would need a new holdout decision).
+split_fix <- fread(PARAMS$split_file)
+stopifnot(identical(names(split_fix), c("Tnr", "block", "set", "train_quarter", "pilot")),
+          !anyDuplicated(split_fix$Tnr))
+fix_blocks <- unique(split_fix[, .(block, set)])
+stopifnot(!anyDuplicated(fix_blocks$block))
+tr <- merge(tr, split_fix[, .(Tnr, block_fix = block, set, train_quarter, pilot)], by = "Tnr", all.x = TRUE)
+new_tracts <- tr[is.na(block_fix), Tnr]
+stopifnot(identical(tr[!is.na(block_fix), block], tr[!is.na(block_fix), block_fix]),
+          all(tr[is.na(block_fix), block] %in% fix_blocks$block))
+set_of_block <- setNames(fix_blocks$set, fix_blocks$block)
+tr[is.na(block_fix), `:=`(set = unname(set_of_block[block]),
+                          train_quarter = FALSE, pilot = FALSE)]
+tr[, block_fix := NULL]
+message(sprintf("[split] %d tracts, %d of them not in the fixed table (set from their block)",
                 nrow(tr), length(new_tracts)))
 fwrite(tr[, .(Tnr, lon, lat, east, north, block, set, train_quarter, pilot)],
        file.path(OUT_VER, "split_blocks.csv"))
@@ -841,6 +1001,7 @@ write_set <- function(name, site_ids) {
   fwrite(tt,             file.path(d, "tree_obs_dt.csv"))
   fwrite(species_dt,     file.path(d, "species_dt.csv"))
   fwrite(s,              file.path(d, "siteID_dt.csv"))
+  fwrite(soil_table(s),  file.path(d, "soil_dt.csv"))
   data.table(set = name, sites = nrow(mp),
              interval_1 = s[, uniqueN(siteID[interval == 1L])],
              interval_2 = s[, uniqueN(siteID[interval == 2L])],
@@ -942,7 +1103,7 @@ per_iv <- function(iv, k) {
           100 * iv$diag$drought_cover)
 }
 tier_tab <- function(iv) {
-  e <- env_unscaled[siteID %in% iv$obs$siteID & year == 0L]
+  e <- env_unscaled[siteID %in% iv$obs$siteID & year == 1L]   # management is static per site-period
   paste(e[, .N, by = management][order(management),
           sprintf("M%d %d", as.integer(management), N)], collapse = ", ")
 }
@@ -950,13 +1111,13 @@ tier_tab <- function(iv) {
 md <- c(
   sprintf("# Prepared data: %s", PARAMS$version),
   "",
-  sprintf("Written by `scripts/71_prepare_two_interval_v8.R` (decade-2 panel: `scripts/91_import_new_schema_chained.R`) at commit `%s` on %s.",
+  sprintf("Written by `scripts/71_prepare_two_interval.R` (decade-2 panel: `scripts/91_import_new_schema_chained.R`) at commit `%s` on %s.",
           commit, format(Sys.time(), "%Y-%m-%d %H:%M")),
   "",
-  "This is the set the FINN-bwi study fits. The study's own files are listed with their SHA-256",
-  "in `outputs/prepared/two-interval-v8.sha256`; the script header says which files match.",
+  "This is the set the final model of the FINN-bwi study is fitted on. SHA-256 of every file except",
+  "this one: `../two-interval-v13-soil.sha256`; the script header says which files match the study's.",
   "",
-  "## What changed vs two-interval-v3 (`scripts/70`)",
+  "## Decisions (numbered as in the script header; the first set of the study, v3, is the reference)",
   "",
   "1. **Freshly dead trees** (flag `tot` in ACCESS2003 `b2_wzp` / `b3_wzp`, `damage_dead` in the",
   "   archive): dead at the start survey -> not in the start stand; a survivor flagged at the end",
@@ -975,16 +1136,24 @@ md <- c(
           dropped[n_start_tally == 0L, mean(ba_lateral_t0)], dropped[, mean(ba_end_tally)],
           dropped[n_start_tally > 0L, .N]),
   "4. **`drought2`** = (drought + drought_lag1) / 2 on the natural scale, pooled-scaled over the",
-  "   national set, last column of the env tables and last row of `env_scales.csv`.",
+  "   national set, after the climate and drought columns of the env tables.",
+  "5. **No env row for the start census.** Every env row drives one annual transition and the",
+  "   initial state is `init_cohort_dt`, so the env tables hold years 1..10 = calendar t0+1..t0+10",
+  "   and simulated year k is calendar t0 + k. The pooled scales are those of the grid 0..10",
+  "   (computed before the year-0 rows were dropped, as in the fitted set).",
+  sprintf("6. **Static soil per corner** (BWI 2012 environmental database, Benning et al. 2019, https://doi.org/10.3220/DATA20190625100522): `soil_nfk` available water capacity to 100 cm (mm); `soil_stagnic` and `soil_ground` perched-water and groundwater degree 0-6 from the harmonised water-regime class (S = 0.25, S0 = G0 = 0.5, G2/3 = 2.5; ranges take the mean of their ends); `soil_wet` = their sum; `soil_nutrient_poor` nutrient class 1 eutrophic .. 6 dystrophic. Two mapping units per corner: area-weighted mean. Gaps filled with the mean of profiled corners of the same natural forest community in the same state (>= %d corners), else of the community, else of the state; the source of every value is in `soil_dt.csv` and `soil_corners.csv`. Scales: mean / sd over the env rows of the national set.",
+          PARAMS$min_group),
   "",
+  "Source of the soil values (share of the national corners):", "",
+  md_tab(dcast(SOIL_COVER, variable ~ source, value.var = "share", fill = 0)), "",
   "The tallied-tree sample (growth, mortality, `tree_obs_dt.csv`) is selected with the start",
   "allocation that still contains the lateral ingrowth, so the sample does not move with the",
-  sprintf("rounding of near-zero expansions: with the v8 start allocation alone, %d (decade 1) / %d (decade 2) at-risk tallied trees would move in or out of the sample. End-survey rows of dead and harvested trees keep their start expansion (they are not part of the end stand).",
+  sprintf("rounding of near-zero expansions: with the start allocation without lateral ingrowth alone, %d (decade 1) / %d (decade 2) at-risk tallied trees would move in or out of the sample. End-survey rows of dead and harvested trees keep their start expansion (they are not part of the end stand).",
           i1$diag$n_sample_flip, i2$diag$n_sample_flip),
   "",
-  "## Regeneration target: a documented choice",
+  "## Regeneration target: as fitted, with a known geometry error",
   "",
-  sprintf("`obs_dt$reg` = stems of archive size classes %s (5.0-6.9 cm) on the r = %.2f m circle, turned from stock into a flux of recruits per ha and period at an assumed diameter increment of %.2f cm/yr through the %.1f cm band (factor %.3f per stem/ha and period). The increment sets the level only, not the composition. This is v8's default; it is about twice the decade-1 recruit flux implied by the angle-count sample. Alternative targets (a lower increment, recruits from the angle-count sample, a hybrid of both) are being evaluated and are not part of this repository.",
+  sprintf("`obs_dt$reg` = stems of archive size classes %s (5.0-6.9 cm) on the r = %.2f m circle, turned from stock into a flux of recruits per ha and period at an assumed diameter increment of %.2f cm/yr through the %.1f cm band (factor %.3f per stem/ha and period). The increment sets the level only, not the composition. **Known error:** from BWI 2012 on these classes are counted on r = 2.00 m (1.75 m is the 2002 design) and the band is 2.0 cm wide, so this target is 1.375 x too high; it is about three times the recruits of the angle-count sample (trees that crossed 7 cm). It is kept because the final model was fitted on it; corrected targets are being refitted in the FINN-bwi study, and the one chosen becomes a new version.",
           paste(PARAMS$reg_classes, collapse = "+"), PARAMS$reg_circle_r_m,
           PARAMS$reg_incr_cm_yr, PARAMS$reg_band_cm, flux_factor),
   sprintf("Off-V share of the circle stems: %s.",
@@ -1005,12 +1174,12 @@ md <- c(
           nat1$`init BA/b2_baeume`, nat1$`tally BA/b2_baeume`,
           nat1$`end BA/design`, nat2$`end BA/design`),
   "",
-  sprintf("Open decision, not applied: the decade-1 corner filter of `scripts/02` (start BA >= 5 m2/ha, the 15 species >= 99 %% of it) was evaluated on the start stand with the lateral ingrowth. Evaluated on the start tally, %d of v8's %d decade-1 site-periods hold < 5 m2/ha of the 15 species (decade 2's filter already sees its plain 2012 tally). v8 keeps the corner selection.",
+  sprintf("Open decision, not applied: the decade-1 corner filter of `scripts/02` (start BA >= 5 m2/ha, the 15 species >= 99 %% of it) was evaluated on the start stand with the lateral ingrowth. Evaluated on the start tally, %d of the %d decade-1 site-periods hold < 5 m2/ha of the 15 species (decade 2's filter already sees its plain 2012 tally). The corner selection is kept.",
           S[interval == 1L & ba_start_design < PARAMS$min_ba_ha_t0, .N], S[interval == 1L, .N]),
   "",
   "### Basal-area conservation of the expansions (national)",
   "",
-  "`wzp_qc_i{1,2}.csv` hold the start expansion; the end expansion is new in v8.", "",
+  "`wzp_qc_i{1,2}.csv` hold the start expansion; the end expansion is item 3b.", "",
   md_tab(QC), "",
   "### Per-tree removal vs obs_dt (tallied trees)",
   "",
@@ -1035,8 +1204,9 @@ md <- c(
   "| file | content |",
   "|---|---|",
   "| obs_dt.csv | siteID, year, species, ba, dbh, trees (end state: fresh expansion of the living end tally), growth, growth_n, mort, n_at_risk, n_died (tallied trees), reg (circles), period_length |",
-  "| env_dt.csv | siteID, year 0..10, mat_c, map_mm, elev_m, x, y, management, drought, drought_lag1, drought2 -- z-scaled ONCE over both decades; management left on 0..3 |",
+  "| env_dt.csv | siteID, year 1..10, mat_c, map_mm, elev_m, x, y, management, drought, drought_lag1, drought2, soil_nfk, soil_stagnic, soil_ground, soil_wet, soil_nutrient_poor -- z-scaled ONCE over both decades; management left on 0..3 |",
   "| env_unscaled_dt.csv / env_scales.csv | natural scale and the pooled mean/sd |",
+  "| soil_dt.csv | corner, siteID, unscaled soil values and the source of each |",
   "| init_cohort_dt.csv | start-of-decade stand = the start tally (BWI2 for i1, BWI3 for i2), for makeInitCohorts() |",
   "| species_dt.csv | the 15 species, one code map for both decades |",
   "| siteID_dt.csv | siteID -> interval, corner, qualified siteName (`Tnr_Enr@i1/@i2`) |",
@@ -1064,9 +1234,9 @@ md <- c(
           paste(PARAMS$calamity_reasons, collapse = ","), n_salvage, n_harvest_all,
           100 * n_salvage / n_harvest_all),
   "",
-  "## Sets (spatially blocked, v3's split)",
+  "## Sets (spatially blocked, the fixed split table)",
   "",
-  sprintf("Every tract keeps its v3 set, block and train_quarter / pilot membership (`two-interval-v3/split_blocks.csv`); %d tract(s) new in v8 take the set of their v3 block and join neither train_quarter nor pilot. Whole tracts, both decades together, %d km blocks on EPSG:3035, %d of %d blocks held out. Every set folder has the national file layout with siteIDs renumbered 1..n (`siteID_dt$siteID_national` maps back) and the national pooled scaling. `split_blocks.csv` lists v8's %d tracts.",
+  sprintf("Every tract keeps its set, block and train_quarter / pilot membership from `inputs/split_tracts.csv`; %d tract(s) not in the table take the set of their block and join neither train_quarter nor pilot. Whole tracts, both decades together, %d km blocks on EPSG:3035, %d of %d blocks held out. Every set folder has the national file layout with siteIDs renumbered 1..n (`siteID_dt$siteID_national` maps back) and the national pooled scaling. `split_blocks.csv` lists this set's %d tracts.",
           length(new_tracts), PARAMS$block_km, length(hold_bl), length(blocks), nrow(tr)),
   "",
   "| set | site-periods | interval 1 | interval 2 | tracts | blocks |", "|---|---|---|---|---|---|",
@@ -1083,9 +1253,8 @@ md <- c(
   "  expected stand still balances (start stems - deaths + recruits = end stems in expectation),",
   "  but no longer per site. The state targets are therefore noisier per site-period than v3's",
   "  carried construction, and unbiased instead of inflated.",
-  "- **The regeneration target is a choice** (section above). With the inflated end state gone, an",
-  "  over-prediction of stems by a fitted model points at the increment assumption, not at ingrowth.",
-  "- **Regeneration geometry for 2022** is assumed unchanged (r = 1.75 m for classes 5+6).",
+  "- **The regeneration target is too high** (section above). With the inflated end state gone, an",
+  "  over-prediction of stems by a fitted model points at the recruitment target, not at ingrowth.",
   "- **Tier M1 is near-empty in both decades** (BAF 4: one tallied tree carries 4 m2/ha).",
   "- Environment exists only for interval-1 corners.",
   "",
@@ -1095,6 +1264,15 @@ md <- c(
   capture.output(str(PARAMS, give.attr = FALSE)),
   "```"
 )
+
+## manifest of every file written so far (PREPARATION.md is not in it), paths
+## relative to the version folder
+all_files <- list.files(OUT_VER, recursive = TRUE)
+sha <- vapply(all_files, function(f) {
+  out <- system2("shasum", c("-a", "256", shQuote(file.path(OUT_VER, f))), stdout = TRUE)
+  strsplit(out, " ")[[1]][1]
+}, character(1))
+writeLines(sprintf("%s  ./%s", sha, all_files), paste0(OUT_VER, ".sha256"))
 writeLines(md, file.path(OUT_VER, "PREPARATION.md"))
 
 message(sprintf("\nDone -> %s/", OUT_VER))

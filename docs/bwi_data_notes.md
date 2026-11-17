@@ -175,9 +175,8 @@ That t0 row belongs to the *tree table*; it is not part of the start-of-period
 back-modelled lateral-ingrowth rows into it counts those trees twice (about
 1.26× the 2002 tally's basal area). Build a model's initial stand from the start
 tally alone and its end state from the living end tally at its own end-survey
-`n_ha`. `scripts/71` (`two-interval-v8`) does this; `scripts/70`
-(`two-interval-v3`, kept for earlier work) does not; see the README,
-*Status relative to the FINN-bwi study*. The 2012→2022 archive panel has no
+`n_ha`. `scripts/71` does this (earlier versions in the git history did
+not); see the README, *Status relative to the FINN-bwi study*. The 2012→2022 archive panel has no
 back-modelled diameters at all, so there every new tree is labelled `recruit`
 (usage guide, *Working with the latest BWI*).
 
@@ -373,8 +372,8 @@ capacity to 30-160 cm per mapping unit), `05_Corg_Humusstufe_aus_M4`. Code table
 on `Tnr`/`Enr` (the 4 x 4 km grid); the densification corners have no profile.
 The BWI's natural forest community `potNatWg` (98.8 % of corners) can fill the gap.
 
-**Prepared version:** `outputs/prepared/two-interval-v13-soil` (`scripts/73`)
-= v12 + `soil_nfk`, `soil_stagnic`, `soil_ground`, `soil_wet`, `soil_nutrient_poor`, gaps
+**Prepared versions:** from `two-interval-v13-soil` on (`scripts/71`), the env
+tables carry `soil_nfk`, `soil_stagnic`, `soil_ground`, `soil_wet`, `soil_nutrient_poor`, gaps
 filled by natural forest community x state. On profiled training corners the
 waterlogging degree orders the dominants as expected (alder 3.3, birch 1.1,
 pedunculate oak 1.0, ... beech 0.25) and the nutrient class puts pine and Japanese

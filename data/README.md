@@ -92,7 +92,7 @@ with the latest BWI").
 
 ## Drought (DWD)
 
-Only for the two-decade FINN inputs (`scripts/16`, `scripts/70`, `scripts/71`). The DWD
+Only for the two-decade FINN inputs (`scripts/16`, `scripts/71`). The DWD
 Climate Data Center publishes 1 km monthly grids for Germany (open data,
 CC BY 4.0, <https://opendata.dwd.de/climate_environment/CDC/grids_germany/monthly/>):
 soil moisture, potential and actual evapotranspiration, and the de Martonne index.
@@ -103,7 +103,7 @@ bash scripts/fetch_dwd_drought.sh            # 2000-2022 -> data/raw/dwd_drought
 
 ## Soil profiles (BWI 2012 environmental database)
 
-Only for `two-interval-v13-soil` (`scripts/73`). Benning, R. et al., 2019.
+Only for the two-decade FINN inputs (`scripts/71`). Benning, R. et al., 2019.
 BWI 2012 Umweltdatenbank Bodenprofile. BWI 2012 Umweltdatenbank.
 <https://doi.org/10.3220/DATA20190625100522> (OpenAgrar; check the licence on
 the landing page before redistributing). Download the archive from the DOI and
@@ -113,7 +113,7 @@ unpack it to
 data/raw/openagrar_derivate_00022249/bwi2012_umweltdatenbank_bodenprofile.mdb
 ```
 
-`scripts/73` reads the Access file directly with mdbtools (`mdb-export`), so
+`scripts/71` reads the Access file directly with mdbtools (`mdb-export`), so
 mdbtools must be on the PATH for that step. The tables and how they are used
 are described in [`../docs/bwi_data_notes.md`](../docs/bwi_data_notes.md),
 section 11.

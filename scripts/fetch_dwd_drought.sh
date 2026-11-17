@@ -59,4 +59,4 @@ for t in "${TYPES[@]}"; do
        { read a; tac 2>/dev/null | head -1 | xargs -I{} echo "$a-{}"; } 2>/dev/null)
   printf "  %-14s %s files\n" "$t" "$n"
 done
-echo "Next: Rscript scripts/16_drought_index.R, then scripts/70 for the two-decade inputs."
+echo "Next: Rscript scripts/16_drought_index.R, then scripts/71 for the two-decade inputs."
